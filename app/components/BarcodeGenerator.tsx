@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
-import { 
-  Package, Download, Printer, Copy, Check, 
-  BarChart3, QrCode, Hash, Eye, X, Search,
-  Grid, List, Filter, RefreshCw
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  Download, Printer, Copy,
+  BarChart3, QrCode, X, Search,
+  Grid, List
 } from 'lucide-react';
+import { productApi } from '../services/api';
+import JsBarcode from 'jsbarcode';
+import QRCode from 'qrcode'; // librería para QR
 
 interface Product {
   id: number;
@@ -20,11 +23,10 @@ interface Product {
 interface BarcodeGeneratorProps {
   isOpen: boolean;
   onClose: () => void;
-  products?: Product[];
 }
 
 interface BarcodeConfig {
-  format: 'CODE128' | 'EAN13' | 'CODE39' | 'QR';
+  format: 'CODE128' | 'CODE39' | 'QR';
   width: number;
   height: number;
   fontSize: number;
@@ -36,8 +38,7 @@ interface BarcodeConfig {
 
 const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   isOpen,
-  onClose,
-  products = []
+  onClose
 }) => {
   const [selectedProducts, setSelectedProducts] = useState<number[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -56,105 +57,105 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   const [showConfig, setShowConfig] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  // Productos con códigos de barras mejorados
-  const enhancedProducts: Product[] = [
-    { id: 1, name: 'Laptop HP Pavilion', price: 2500000, stock: 5, code: '7701234567890', category: 'Computadores' },
-    { id: 2, name: 'Mouse Logitech MX', price: 150000, stock: 20, code: '7701234567891', category: 'Accesorios' },
-    { id: 3, name: 'Teclado Mecánico', price: 300000, stock: 15, code: '7701234567892', category: 'Accesorios' },
-    { id: 4, name: 'Monitor 24"', price: 800000, stock: 8, code: '7701234567893', category: 'Monitores' },
-    { id: 5, name: 'Impresora Canon', price: 450000, stock: 3, code: '7701234567894', category: 'Impresoras' },
-    { id: 6, name: 'Arroz Premium', price: 3500, stock: 100, code: '7702001234567', category: 'Alimentos', sellByWeight: true },
-    { id: 7, name: 'Carne de Res', price: 25000, stock: 50, code: '7702002345678', category: 'Carnes', sellByWeight: true },
-    { id: 8, name: 'Queso Campesino', price: 18000, stock: 30, code: '7702003456789', category: 'Lácteos', sellByWeight: true },
-    { id: 9, name: 'Smartphone Samsung', price: 1200000, stock: 12, code: '7701234567895', category: 'Electrónicos' },
-    { id: 10, name: 'Tablet iPad', price: 1800000, stock: 7, code: '7701234567896', category: 'Electrónicos' },
-    { id: 11, name: 'Auriculares Sony', price: 250000, stock: 25, code: '7701234567897', category: 'Accesorios' },
-    { id: 12, name: 'Cámara Canon EOS', price: 3500000, stock: 4, code: '7701234567898', category: 'Fotografía' },
-    { id: 13, name: 'Disco Duro 1TB', price: 180000, stock: 18, code: '7701234567899', category: 'Almacenamiento' },
-    { id: 14, name: 'Memoria RAM 16GB', price: 320000, stock: 22, code: '7701234567900', category: 'Componentes' },
-    { id: 15, name: 'Procesador Intel i7', price: 1500000, stock: 6, code: '7701234567901', category: 'Componentes' }
-  ];
+  // Estado para productos reales de la base de datos
+  const [dbProducts, setDbProducts] = useState<Product[]>([]);
 
-  const allProducts = products.length > 0 ? products : enhancedProducts;
+  // Cargar productos desde la API cuando el modal se abra
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const response = await productApi.getProducts();
+        if (response?.success) {
+          const productsArray = Array.isArray(response.data?.data)
+            ? response.data.data
+            : Array.isArray(response.data)
+            ? response.data
+            : [];
+          const mapped: Product[] = productsArray.map((apiProduct: any) => ({
+            id: apiProduct.id,
+            name: apiProduct.name,
+            price: parseFloat(apiProduct.unit_price),
+            stock: parseFloat(apiProduct.stock_quantity),
+            code: apiProduct.sku,
+            category: apiProduct.category?.name || '',
+          }));
+          setDbProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      }
+    }
+    if (isOpen) {
+      fetchProducts();
+    }
+  }, [isOpen]);
 
-  // Generar código de barras usando Canvas
+  /**
+   * Genera un código de barras o QR válido en el canvas y devuelve su data URI.
+   * Dependiendo del valor de `config.format` usa JsBarcode (1D) o QRCode (2D).
+   */
   const generateBarcode = (text: string, format: string = 'CODE128'): string => {
     const canvas = canvasRef.current;
     if (!canvas) return '';
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return '';
 
-    // Configurar canvas
-    canvas.width = 300;
-    canvas.height = 150;
-    
-    // Limpiar canvas
-    ctx.fillStyle = config.background;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Generar patrón de barras simple para CODE128
-    if (format === 'CODE128' || format === 'EAN13') {
-      const barWidth = config.width;
-      const barHeight = config.height;
-      const startX = config.margin;
-      const startY = config.margin;
-      
-      ctx.fillStyle = config.lineColor;
-      
-      // Generar patrón basado en el texto
-      let x = startX;
-      for (let i = 0; i < text.length; i++) {
-        const charCode = text.charCodeAt(i);
-        const pattern = charCode % 4; // Patrón simple
-        
-        for (let j = 0; j < 8; j++) {
-          if ((pattern >> j) & 1) {
-            ctx.fillRect(x, startY, barWidth, barHeight);
-          }
-          x += barWidth;
-        }
-      }
-      
-      // Agregar texto si está habilitado
-      if (config.displayValue) {
-        ctx.fillStyle = config.lineColor;
-        ctx.font = `${config.fontSize}px Arial`;
-        ctx.textAlign = 'center';
-        ctx.fillText(text, canvas.width / 2, startY + barHeight + config.fontSize + 5);
-      }
-    } else if (format === 'QR') {
-      // Generar QR simple (patrón de cuadrados)
-      const qrSize = 20;
-      const cellSize = Math.min(canvas.width, canvas.height) / qrSize;
-      
-      ctx.fillStyle = config.lineColor;
-      
-      for (let i = 0; i < qrSize; i++) {
-        for (let j = 0; j < qrSize; j++) {
-          // Patrón pseudo-aleatorio basado en el texto
-          const hash = (text.charCodeAt(i % text.length) + i + j) % 3;
-          if (hash === 0) {
-            ctx.fillRect(j * cellSize, i * cellSize, cellSize, cellSize);
-          }
-        }
-      }
+    // Quitar todo lo que hubiera pintado antes
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
-    
-    return canvas.toDataURL();
+
+    try {
+      if (format === 'QR') {
+        // Usamos la librería qrcode, indicando margen y tamaño en función de la configuración
+        // width y height determinan el tamaño total del QR
+        QRCode.toCanvas(canvas, text, {
+          margin: config.margin / 10,
+          width: config.height, // puedes ajustar según lo que necesites
+          color: {
+            dark: config.lineColor,
+            light: config.background
+          }
+        });
+      } else {
+        // Código de barras 1D con JsBarcode:
+        // Mapear nuestro nombre de formato al "format" que JsBarcode espera
+        const jsbarcodeFormat = format.toLowerCase(); // 'code128', 'ean13', 'code39'
+
+        JsBarcode(canvas, text, {
+          format: jsbarcodeFormat,
+          lineColor: config.lineColor,
+          background: config.background,
+          width: config.width,
+          height: config.height,
+          displayValue: config.displayValue,
+          fontSize: config.fontSize,
+          margin: config.margin,
+        });
+      }
+
+      // Convertir a data URL para descargar/copiar
+      return canvas.toDataURL();
+    } catch (error) {
+      console.error('Error generando el código de barras:', error);
+      return '';
+    }
   };
 
-  const filteredProducts = allProducts.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.code.includes(searchTerm);
-    const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
+  // Filtrado y categorías basados en los productos de la API
+  const filteredProducts = dbProducts.filter(product => {
+    const matchesSearch =
+      product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      product.code.includes(searchTerm);
+    const matchesCategory =
+      categoryFilter === 'all' || product.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
 
-  const categories = [...new Set(allProducts.map(p => p.category))];
+  const categories = [...new Set(dbProducts.map(p => p.category))];
 
+  // Funciones de selección de productos
   const toggleProductSelection = (productId: number) => {
-    setSelectedProducts(prev => 
+    setSelectedProducts(prev =>
       prev.includes(productId)
         ? prev.filter(id => id !== productId)
         : [...prev, productId]
@@ -169,6 +170,7 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
     setSelectedProducts([]);
   };
 
+  // Función para descargar un código de barras individual
   const downloadBarcode = (product: Product) => {
     const dataUrl = generateBarcode(product.code, config.format);
     const link = document.createElement('a');
@@ -177,15 +179,17 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
     link.click();
   };
 
+  // Función para descargar todos los seleccionados
   const downloadSelectedBarcodes = () => {
-    selectedProducts.forEach(productId => {
-      const product = allProducts.find(p => p.id === productId);
+    selectedProducts.forEach((productId, idx) => {
+      const product = dbProducts.find(p => p.id === productId);
       if (product) {
-        setTimeout(() => downloadBarcode(product), 100 * productId);
+        setTimeout(() => downloadBarcode(product), 100 * idx);
       }
     });
   };
 
+  // Copiar al portapapeles
   const copyBarcodeToClipboard = async (product: Product) => {
     try {
       const dataUrl = generateBarcode(product.code, config.format);
@@ -197,18 +201,20 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
       alert('Código de barras copiado al portapapeles');
     } catch (err) {
       console.error('Error copying to clipboard:', err);
-      // Fallback: copiar el código como texto
       await navigator.clipboard.writeText(product.code);
       alert('Código copiado como texto al portapapeles');
     }
   };
 
+  // Imprimir códigos seleccionados
   const printBarcodes = () => {
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
-    const selectedProductsData = allProducts.filter(p => selectedProducts.includes(p.id));
-    
+    const selectedProductsData = dbProducts.filter(p =>
+      selectedProducts.includes(p.id)
+    );
+
     let printContent = `
       <html>
         <head>
@@ -259,21 +265,20 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
     }, 250);
   };
 
+  // Ocultar el modal si no está abierto
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full max-h-[90vh] overflow-hidden">
-        {/* Header */}
+        {/* Cabecera */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
               <QrCode className="w-8 h-8" />
               <div>
                 <h2 className="text-2xl font-bold">Generador de Códigos de Barras</h2>
-                <p className="text-blue-100">
-                  Genera e imprime códigos de barras para tus productos
-                </p>
+                <p className="text-blue-100">Genera e imprime códigos de barras para tus productos</p>
               </div>
             </div>
             <div className="flex items-center space-x-3">
@@ -295,11 +300,11 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
         </div>
 
         <div className="flex h-[600px]">
-          {/* Sidebar - Configuración */}
+          {/* Panel de configuración */}
           {showConfig && (
             <div className="w-80 bg-gray-50 border-r p-4 space-y-4">
               <h3 className="font-semibold text-gray-800">Configuración</h3>
-              
+              {/* Controles de configuración */}
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Formato</label>
                 <select
@@ -308,12 +313,10 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
                   <option value="CODE128">CODE 128</option>
-                  <option value="EAN13">EAN-13</option>
                   <option value="CODE39">CODE 39</option>
                   <option value="QR">QR Code</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Ancho de Barra</label>
                 <input
@@ -326,7 +329,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                 />
                 <span className="text-sm text-gray-600">{config.width}px</span>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Altura</label>
                 <input
@@ -339,7 +341,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                 />
                 <span className="text-sm text-gray-600">{config.height}px</span>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Tamaño de Fuente</label>
                 <input
@@ -352,7 +353,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                 />
                 <span className="text-sm text-gray-600">{config.fontSize}px</span>
               </div>
-
               <div className="flex items-center space-x-2">
                 <input
                   type="checkbox"
@@ -365,7 +365,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                   Mostrar texto
                 </label>
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Color de Fondo</label>
                 <input
@@ -375,7 +374,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                   className="w-full h-10 border border-gray-300 rounded-lg"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Color de Líneas</label>
                 <input
@@ -388,10 +386,10 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
             </div>
           )}
 
-          {/* Main Content */}
+          {/* Contenido principal */}
           <div className="flex-1 p-6 overflow-y-auto">
-            {/* Controls */}
             <div className="mb-6 space-y-4">
+              {/* Controles de búsqueda y vista */}
               <div className="flex flex-wrap items-center justify-between gap-4">
                 <div className="flex items-center space-x-4">
                   <div className="relative">
@@ -404,7 +402,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                       className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     />
                   </div>
-                  
                   <select
                     value={categoryFilter}
                     onChange={(e) => setCategoryFilter(e.target.value)}
@@ -412,15 +409,18 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                   >
                     <option value="all">Todas las categorías</option>
                     {categories.map(category => (
-                      <option key={category} value={category}>{category}</option>
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
                     ))}
                   </select>
-                  
                   <div className="flex items-center space-x-2">
                     <button
                       onClick={() => setViewMode('grid')}
                       className={`p-2 rounded-lg transition-colors ${
-                        viewMode === 'grid' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'
+                        viewMode === 'grid'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
                       <Grid className="w-4 h-4" />
@@ -428,14 +428,15 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                     <button
                       onClick={() => setViewMode('list')}
                       className={`p-2 rounded-lg transition-colors ${
-                        viewMode === 'list' ? 'bg-blue-100 text-blue-600' : 'text-gray-600 hover:bg-gray-100'
+                        viewMode === 'list'
+                          ? 'bg-blue-100 text-blue-600'
+                          : 'text-gray-600 hover:bg-gray-100'
                       }`}
                     >
                       <List className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
-                
                 <div className="flex items-center space-x-3">
                   <span className="text-sm text-gray-600">
                     {selectedProducts.length} seleccionados
@@ -454,7 +455,6 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                   </button>
                 </div>
               </div>
-              
               {selectedProducts.length > 0 && (
                 <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
                   <button
@@ -475,24 +475,32 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
               )}
             </div>
 
-            {/* Products Grid/List */}
-            <div className={viewMode === 'grid' ? 
-              'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4' : 
-              'space-y-2'
-            }>
+            {/* Lista de productos */}
+            <div
+              className={
+                viewMode === 'grid'
+                  ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
+                  : 'space-y-2'
+              }
+            >
               {filteredProducts.map(product => {
                 const isSelected = selectedProducts.includes(product.id);
                 const barcodeDataUrl = generateBarcode(product.code, config.format);
-                
                 return (
                   <div
                     key={product.id}
                     className={`border rounded-lg p-4 transition-all cursor-pointer ${
-                      isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                      isSelected
+                        ? 'border-blue-500 bg-blue-50'
+                        : 'border-gray-200 hover:border-gray-300'
                     } ${viewMode === 'list' ? 'flex items-center space-x-4' : ''}`}
                     onClick={() => toggleProductSelection(product.id)}
                   >
-                    <div className={`flex items-center space-x-2 ${viewMode === 'list' ? 'flex-1' : 'mb-3'}`}>
+                    <div
+                      className={`flex items-center space-x-2 ${
+                        viewMode === 'list' ? 'flex-1' : 'mb-3'
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={isSelected}
@@ -501,24 +509,30 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
                         onClick={(e) => e.stopPropagation()}
                       />
                       <div className={viewMode === 'list' ? 'flex-1' : ''}>
-                        <h3 className="font-medium text-gray-800">{product.name}</h3>
+                        <h3 className="font-medium text-gray-800">
+                          {product.name}
+                        </h3>
                         <p className="text-sm text-gray-600">{product.category}</p>
                         <p className="text-sm font-mono text-gray-500">{product.code}</p>
-                        <p className="text-lg font-bold text-blue-600">${product.price.toLocaleString()}</p>
+                        <p className="text-lg font-bold text-blue-600">
+                          ${product.price.toLocaleString()}
+                        </p>
                       </div>
                     </div>
-                    
                     {viewMode === 'grid' && barcodeDataUrl && (
                       <div className="text-center">
-                        <img 
-                          src={barcodeDataUrl} 
+                        <img
+                          src={barcodeDataUrl}
                           alt={`Código de barras ${product.code}`}
                           className="max-w-full h-auto mx-auto mb-2"
                         />
                       </div>
                     )}
-                    
-                    <div className={`flex items-center space-x-2 ${viewMode === 'list' ? '' : 'mt-3'}`}>
+                    <div
+                      className={`flex items-center space-x-2 ${
+                        viewMode === 'list' ? '' : 'mt-3'
+                      }`}
+                    >
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -547,7 +561,7 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
           </div>
         </div>
 
-        {/* Hidden canvas for barcode generation */}
+        {/* Canvas oculto donde se renderizan los códigos con JsBarcode/QRCode */}
         <canvas ref={canvasRef} style={{ display: 'none' }} />
       </div>
     </div>
