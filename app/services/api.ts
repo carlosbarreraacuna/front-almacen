@@ -60,6 +60,14 @@ export interface ApiProduct {
   brand?: {
     id: number;
     name: string;
+    description?: string | null;
+    logo_url?: string | null;
+    website?: string | null;
+    contact_email?: string | null;
+    contact_phone?: string | null;
+    is_active: boolean;
+    created_at?: string;
+    updated_at?: string;
   };
   location?: {
     id: number;
@@ -69,14 +77,14 @@ export interface ApiProduct {
 
 export interface CreateProductData {
   name: string;
-  description?: string;
-  sku: string;
-  barcode?: string;
-  category_id?: number;
-  brand_id?: number;
-  unit_price: number;
-  cost_price: number;
-  stock_quantity: number;
+    description?: string;
+    sku: string;
+    barcode?: string;
+    category_id?: number;
+    brand_id?: number;
+    unit_price: number;
+    cost_price: number;
+    stock_quantity: number;
   min_stock_level: number;
   max_stock_level?: number;
   unit_of_measure: string;
@@ -196,6 +204,23 @@ export const categoryApi = {
 export const brandApi = {
   getBrands: async () => {
     return await apiRequest('/brands');
+  },
+  createBrand: async (brandData: { name: string }) => {
+    return await apiRequest('/brands', {
+      method: 'POST',
+      body: JSON.stringify(brandData),
+    });
+  },
+  updateBrand: async (id: number, brandData: { name: string }) => {
+    return await apiRequest(`/brands/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(brandData),
+    });
+  },
+  deleteBrand: async (id: number) => {
+    return await apiRequest(`/brands/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

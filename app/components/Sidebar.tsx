@@ -60,40 +60,54 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
       ]
     },
     {
-      title: 'Gestión',
-      icon: Briefcase,
-      color: 'green',
-      items: [
-        {
-          id: 'users',
-          name: 'Usuarios',
-          icon: Users,
-          permission: 'users.view',
-          description: 'Administrar usuarios del sistema'
-        },
-        {
-          id: 'products',
-          name: 'Productos',
-          icon: Package,
-          permission: 'products.view',
-          description: 'Catálogo de productos'
-        },
-        {
-          id: 'inventory',
-          name: 'Inventario',
-          icon: Warehouse,
-          permission: 'inventory.view',
-          description: 'Control de stock'
-        },
-        {
-          id: 'warehouse',
-          name: 'Gestión de Almacén',
-          icon: MapPin,
-          permission: 'warehouse.view',
-          description: 'Ubicaciones y almacenes'
-        }
-      ]
+  title: 'Gestión',
+  icon: Briefcase,
+  color: 'green',
+  items: [
+    {
+      id: 'users',
+      name: 'Usuarios',
+      icon: Users,
+      permission: 'users.view',
+      description: 'Administrar usuarios del sistema'
     },
+    {
+      id: 'products',
+      name: 'Productos',
+      icon: Package,
+      permission: 'products.view',
+      description: 'Catálogo de productos'
+    },
+    {
+      id: 'inventory',
+      name: 'Inventario',
+      icon: Warehouse,
+      permission: 'inventory.view',
+      description: 'Control de stock'
+    },
+    {
+      id: 'warehouse',
+      name: 'Gestión de Almacén',
+      icon: MapPin,
+      permission: 'warehouse.view',
+      description: 'Ubicaciones y almacenes'
+    },
+    {
+      id: 'brands',
+      name: 'Marcas',
+      icon: Briefcase, // Puedes elegir otro icono si lo prefieres
+      permission: 'brands.view',
+      description: 'Gestión de marcas'
+    },
+    {
+      id: 'categories',
+      name: 'Categorías',
+      icon: PieChart, // Puedes elegir otro icono si lo prefieres
+      permission: 'categories.view',
+      description: 'Gestión de categorías'
+    }
+  ]
+},
     {
       title: 'Ventas',
       icon: CreditCard,
@@ -307,7 +321,7 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
         </div>
 
         {/* User Info */}
-        <div className="p-3 sm:p-4 border-b border-gray-200">
+        {/* <div className="p-3 sm:p-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
             <div className="flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 bg-blue-500 text-white rounded-full text-sm sm:text-base font-medium flex-shrink-0">
               {user?.name?.charAt(0).toUpperCase()}
@@ -317,7 +331,7 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
               <p className="text-xs sm:text-sm text-gray-500 capitalize truncate">{user?.role?.name}</p>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-2 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">

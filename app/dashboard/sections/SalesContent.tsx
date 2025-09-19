@@ -18,7 +18,7 @@ import CouponSystem from '../../components/CouponSystem';
 import BarcodeGenerator from '../../components/BarcodeGenerator';
 import { useQRScanner } from '../../hooks/useQRScanner';
 import { usePhysicalBarcodeReader } from '../../hooks/usePhysicalBarcodeReader';
-// import { useKeyboardBarcodeReader } from '../../hooks/useKeyboardBarcodeReader'; // Reemplazado por SimpleBarcodeReader
+import { productApi } from '../../services/api';
 
 interface Product {
   id: number;
@@ -148,24 +148,37 @@ export default function SalesContent() {
     }
   };
 
-  // Mock data - Productos con códigos de barras reales
-  const [products] = useState<Product[]>([
-    { id: 1, name: 'Laptop HP Pavilion', price: 2500000, stock: 5, code: 'LP001', category: 'Computadores' },
-    { id: 2, name: 'Mouse Logitech MX', price: 150000, stock: 20, code: 'MS001', category: 'Accesorios' },
-    { id: 3, name: 'Teclado Mecánico', price: 300000, stock: 15, code: '7701234567892', category: 'Accesorios' },
-    { id: 4, name: 'Monitor 24"', price: 800000, stock: 8, code: '7701234567893', category: 'Monitores' },
-    { id: 5, name: 'Impresora Canon', price: 450000, stock: 3, code: '7701234567894', category: 'Impresoras' },
-    { id: 6, name: 'Arroz Premium', price: 3500, stock: 100, code: '7702001234567', category: 'Alimentos', sellByWeight: true },
-    { id: 7, name: 'Carne de Res', price: 25000, stock: 50, code: '7702002345678', category: 'Carnes', sellByWeight: true },
-    { id: 8, name: 'Queso Campesino', price: 18000, stock: 30, code: '7702003456789', category: 'Lácteos', sellByWeight: true },
-    { id: 9, name: 'Smartphone Samsung', price: 1200000, stock: 12, code: '7701234567895', category: 'Electrónicos' },
-    { id: 10, name: 'Tablet iPad', price: 1800000, stock: 7, code: '7701234567896', category: 'Electrónicos' },
-    { id: 11, name: 'Auriculares Sony', price: 250000, stock: 25, code: '7701234567897', category: 'Accesorios' },
-    { id: 12, name: 'Cámara Canon EOS', price: 3500000, stock: 4, code: '7701234567898', category: 'Fotografía' },
-    { id: 13, name: 'Disco Duro 1TB', price: 180000, stock: 18, code: '7701234567899', category: 'Almacenamiento' },
-    { id: 14, name: 'Memoria RAM 16GB', price: 320000, stock: 22, code: '7701234567900', category: 'Componentes' },
-    { id: 15, name: 'Procesador Intel i7', price: 1500000, stock: 6, code: '7701234567901', category: 'Componentes' }
-  ]);
+  // Estado para productos reales de la base de datos
+  const [products, setProducts] = useState<Product[]>([]);
+
+  // Cargar productos desde la API al montar el componente
+  useEffect(() => {
+    async function fetchProducts() {
+      try {
+        const response = await productApi.getProducts();
+        if (response?.success) {
+          const productsArray = Array.isArray(response.data?.data)
+            ? response.data.data
+            : Array.isArray(response.data)
+            ? response.data
+            : [];
+          const mapped: Product[] = productsArray.map((apiProduct: any) => ({
+            id: apiProduct.id,
+            name: apiProduct.name,
+            price: parseFloat(apiProduct.unit_price),
+            stock: parseFloat(apiProduct.stock_quantity),
+            code: apiProduct.sku,
+            category: apiProduct.category?.name || '',
+            sellByWeight: apiProduct.sell_by_weight || false,
+          }));
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.error('Error fetching products:', err);
+      }
+    }
+    fetchProducts();
+  }, []);
 
   const [customers] = useState<Customer[]>([
     { id: 1, name: 'Juan Pérez', email: 'juan@email.com', phone: '3001234567', document: '12345678' },
