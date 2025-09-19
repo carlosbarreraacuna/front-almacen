@@ -189,16 +189,41 @@ export const productApi = {
 
 // Servicios para categorías
 export const categoryApi = {
-  getCategories: async () => {
-    return await apiRequest('/categories');
+  async getCategories(params?: { per_page?: number; query?: string; parent_id?: number; only_active?: boolean }) {
+    const qs = new URLSearchParams();
+    if (params?.per_page) qs.set('per_page', String(params.per_page));
+    if (params?.query) qs.set('query', params.query);
+    if (params?.parent_id !== undefined) qs.set('parent_id', String(params.parent_id));
+    if (params?.only_active) qs.set('only_active', '1');
+    const suffix = qs.toString() ? `?${qs.toString()}` : '';
+    return apiRequest(`/categories${suffix}`, { method: 'GET' });
   },
-  createCategory: async (categoryData: { name: string; description?: string; parent_id?: number }) => {
-    return await apiRequest('/categories', {
+  async getCategory(id: number) {
+    return apiRequest(`/categories/${id}`, { method: 'GET' });
+  },
+  async createCategory(data: any) {
+    return apiRequest('/categories', {
       method: 'POST',
-      body: JSON.stringify(categoryData),
+      body: JSON.stringify(data),
     });
   },
+  async updateCategory(id: number, data: any) {
+    return apiRequest(`/categories/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+  async deleteCategory(id: number) {
+    return apiRequest(`/categories/${id}`, { method: 'DELETE' });
+  },
+  async select() {
+    return apiRequest('/categories/select', { method: 'GET' });
+  },
+  async tree() {
+    return apiRequest('/categories/tree', { method: 'GET' });
+  },
 };
+
 
 // Servicios para marcas
 export const brandApi = {
