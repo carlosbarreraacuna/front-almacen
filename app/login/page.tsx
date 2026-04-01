@@ -133,15 +133,7 @@ export default function LoginPage() {
             </button>
           </form>
 
-          {/* Demo Credentials */}
-          <div className="mt-6 p-4 bg-gray-50 rounded-md">
-            <p className="text-sm font-medium text-gray-700 mb-2">Credenciales de prueba:</p>
-            <div className="text-xs text-gray-600 space-y-1">
-              <p><strong>Administrador:</strong> admin@test.com / password</p>
-              <p><strong>Gerente:</strong> gerente@test.com / password</p>
-              <p><strong>Empleado:</strong> empleado@test.com / password</p>
-            </div>
-          </div>
+          
         </div>
       </div>
     </div>
