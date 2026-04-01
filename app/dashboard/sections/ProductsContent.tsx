@@ -4,15 +4,10 @@ import React, { useState, useEffect } from 'react';
 import {
   Package,
   Plus,
-  Search,
-  Edit,
-  Trash2,
-  Eye,
-  Tag,
-  DollarSign,
   X,
   Save,
   AlertCircle,
+  Upload,
 } from 'lucide-react';
 import {
   productApi,
@@ -22,6 +17,8 @@ import {
   UpdateProductData,
 } from '../../services/api';
 import Cookies from 'js-cookie';
+import { ProductsDataTable } from '../../components/ProductsDataTable';
+import { ProductImportModal } from '../../components/ProductImportModal';
 
 interface Product {
   id: number;
@@ -55,6 +52,16 @@ interface ProductFormData {
   image?: string;
 }
 
+interface ProductFormErrors {
+  name?: string;
+  sku?: string;
+  category?: string;
+  price?: string;
+  stock?: string;
+  min_stock?: string;
+  description?: string;
+}
+
 interface ProductFilters {
   search: string;
   category: string; // ID de categoría (string) o ''
@@ -83,6 +90,7 @@ export default function ProductsContent() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
 
   // Permite que, al crear una categoría desde el modal, se preseleccione automáticamente
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
@@ -349,7 +357,7 @@ const loadProducts = async () => {
       status: 'active',
       description: '',
     });
-    const [errors, setErrors] = useState<Partial<ProductFormData>>({});
+    const [errors, setErrors] = useState<ProductFormErrors>({});
 
     useEffect(() => {
       if (modalMode === 'edit' && selectedProduct) {
@@ -388,7 +396,7 @@ const loadProducts = async () => {
     }, [pendingCategoryId, modalMode]);
 
     const validateForm = (): boolean => {
-      const newErrors: Partial<ProductFormData> = {};
+      const newErrors: ProductFormErrors = {};
 
       if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
       if (!formData.sku.trim()) newErrors.sku = 'El SKU es requerido';
@@ -423,7 +431,7 @@ const loadProducts = async () => {
 
     const handleInputChange = (field: keyof ProductFormData, value: string | number) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
-      if (errors[field]) {
+      if (errors[field as keyof ProductFormErrors]) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));
       }
     };
@@ -686,55 +694,6 @@ const loadProducts = async () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-            <Package className="w-8 h-8 text-blue-600" />
-            <span>Gestión de Productos</span>
-          </h1>
-          <p className="text-gray-600 mt-1">Administra el catálogo de productos</p>
-        </div>
-        <div className="flex space-x-2">
-          <button
-            onClick={() => setModalMode('create')}
-            disabled={loading || submitting}
-            className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Nuevo Producto</span>
-          </button>
-          <button
-            onClick={async () => {
-              try {
-                const productsResponse = await fetch('http://localhost:8000/api/inventory', {
-                  headers: {
-                    Authorization: `Bearer ${Cookies.get('auth_token')}`,
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                  },
-                });
-                const productsData = await productsResponse.json();
-                console.log('Direct Products API call:', productsData);
-
-                const categoriesResponse = await fetch('http://localhost:8000/api/categories', {
-                  headers: {
-                    Authorization: `Bearer ${Cookies.get('auth_token')}`,
-                    Accept: 'application/json',
-                    'Content-Type': 'application/json',
-                  },
-                });
-                const categoriesData = await categoriesResponse.json();
-                console.log('Direct Categories API call:', categoriesData);
-              } catch (error) {
-                console.error('Direct API test error:', error);
-              }
-            }}
-            className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700"
-          >
-            <span>Test API</span>
-          </button>
-        </div>
-      </div>
 
       {/* Mostrar errores */}
       {error && (
@@ -748,51 +707,16 @@ const loadProducts = async () => {
       )}
 
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-            <input
-              type="text"
-              placeholder="Buscar productos..."
-              value={filters.search}
-              onChange={(e) => setFilters((prev) => ({ ...prev, search: e.target.value }))}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <select
-            value={filters.category}
-            onChange={(e) => setFilters((prev) => ({ ...prev, category: e.target.value }))}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Todas las categorías</option>
-            {categories.map((category) => (
-              <option key={category.id} value={category.id.toString()}>
-                {category.name}
-              </option>
-            ))}
-          </select>
-          <select
-            value={filters.status}
-            onChange={(e) => setFilters((prev) => ({ ...prev, status: e.target.value }))}
-            className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-          >
-            <option value="">Todos los estados</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
-            <option value="low_stock">Stock bajo</option>
-          </select>
-        </div>
-
         {loading ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
             <p className="text-gray-500">Cargando productos...</p>
           </div>
-        ) : filteredProducts.length === 0 ? (
+        ) : products.length === 0 ? (
           <div className="text-center py-12">
             <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron productos</h3>
-            <p className="text-gray-500 mb-4">No hay productos que coincidan con los filtros aplicados.</p>
+            <p className="text-gray-500 mb-4">No hay productos registrados en el sistema.</p>
             <button
               onClick={() => setModalMode('create')}
               className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 mx-auto"
@@ -802,103 +726,20 @@ const loadProducts = async () => {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredProducts.map((product) => (
-              <div key={product.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{product.name}</h3>
-                    <p className="text-sm text-gray-500">{product.sku}</p>
-                    {product.description && (
-                      <p className="text-xs text-gray-400 mt-1 line-clamp-2">{product.description}</p>
-                    )}
-                  </div>
-                  <div className="flex space-x-1">
-                    <button
-                      onClick={() => {
-                        setSelectedProduct(product);
-                        setModalMode('view');
-                      }}
-                      className="p-1 text-gray-400 hover:text-blue-600"
-                      title="Ver producto"
-                    >
-                      <Eye className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setSelectedProduct(product);
-                        setModalMode('edit');
-                      }}
-                      className="p-1 text-gray-400 hover:text-green-600"
-                      title="Editar producto"
-                    >
-                      <Edit className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={() => setShowDeleteConfirm(product.id)}
-                      className="p-1 text-gray-400 hover:text-red-600"
-                      title="Eliminar producto"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center space-x-1 text-sm text-gray-600">
-                      <Tag className="w-4 h-4" />
-                      <span>{product.category}</span>
-                    </span>
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        product.stock <= product.min_stock ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
-                      }`}
-                    >
-                      Stock: {product.stock}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between">
-                    <span className="flex items-center space-x-1 text-lg font-bold text-gray-900">
-                      <DollarSign className="w-4 h-4" />
-                      <span>
-    {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP' }).format(product.price)}
-  </span>
-                    </span>
-                    {product.stock <= product.min_stock && (
-                      <span className="text-xs text-red-600 font-medium">Stock Bajo</span>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2">
-                    <span
-                      className={`px-2 py-1 rounded-full text-xs ${
-                        product.status === 'active' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                      }`}
-                    >
-                      {product.status === 'active' ? 'Activo' : 'Inactivo'}
-                    </span>
-                    <div className="flex items-center space-x-2">
-                      <button
-                        onClick={() => updateStock(product.id, -1)}
-                        disabled={product.stock <= 0}
-                        className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        -1
-                      </button>
-                      <button
-                        onClick={() => updateStock(product.id, 1)}
-                        className="text-xs bg-green-100 text-green-600 px-2 py-1 rounded hover:bg-green-200"
-                      >
-                        +1
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ProductsDataTable
+            data={products}
+            onEdit={(product) => {
+              setSelectedProduct(product);
+              setModalMode('edit');
+            }}
+            onDelete={(id) => setShowDeleteConfirm(id)}
+            onView={(product) => {
+              setSelectedProduct(product);
+              setModalMode('view');
+            }}
+            onImport={() => setShowImportModal(true)}
+            onCreate={() => setModalMode('create')}
+          />
         )}
       </div>
 
@@ -994,6 +835,16 @@ const loadProducts = async () => {
           </div>
         </div>
       )}
+
+      {/* Modal de Importación */}
+      <ProductImportModal
+        isOpen={showImportModal}
+        onClose={() => setShowImportModal(false)}
+        onImportSuccess={() => {
+          loadProducts();
+          setShowImportModal(false);
+        }}
+      />
 
       {/* Modal de Producto */}
       <ProductModal pendingCategoryId={pendingCategoryId} />

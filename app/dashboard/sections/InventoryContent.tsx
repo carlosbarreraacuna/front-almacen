@@ -6,14 +6,6 @@ import { Warehouse, AlertTriangle, TrendingUp, Package } from 'lucide-react';
 export default function InventoryContent() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 flex items-center space-x-2">
-          <Warehouse className="w-8 h-8 text-blue-600" />
-          <span>Control de Inventario</span>
-        </h1>
-        <p className="text-gray-600 mt-1">Monitorea y gestiona el inventario</p>
-      </div>
-
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-white p-6 rounded-lg shadow-sm border">
           <div className="flex items-center justify-between">

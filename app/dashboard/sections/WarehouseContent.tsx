@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { MapPin, Package, ArrowUpDown, Search, Plus, Edit, Trash2, Eye, X, Save } from 'lucide-react';
+import { WarehouseDataTable } from '@/app/components/WarehouseDataTable';
 
 interface Location {
   id: number;
@@ -187,14 +188,6 @@ export default function WarehouseContent() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Almacén</h1>
-          <p className="text-gray-600">Administra ubicaciones y movimientos de inventario</p>
-        </div>
-      </div>
-
       {/* Tabs */}
       <div className="border-b border-gray-200">
         <nav className="-mb-px flex space-x-8">
@@ -246,66 +239,23 @@ export default function WarehouseContent() {
 
       {/* Content */}
       {activeTab === 'locations' ? (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Código</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ubicación</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Capacidad</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Stock Actual</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {filteredLocations.map((location) => (
-                <tr key={location.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{location.code}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{location.name}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 capitalize">{location.type}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{location.capacity}</td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    <div className="flex items-center">
-                      <span>{location.currentStock}</span>
-                      <div className="ml-2 w-16 bg-gray-200 rounded-full h-2">
-                        <div 
-                          className="bg-blue-500 h-2 rounded-full" 
-                          style={{ width: `${(location.currentStock / location.capacity) * 100}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${getStatusColor(location.status)}`}>
-                      {location.status === 'active' ? 'Activo' : location.status === 'inactive' ? 'Inactivo' : 'Mantenimiento'}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <div className="flex space-x-2">
-                      <button className="text-blue-600 hover:text-blue-900">
-                        <Eye className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleEditLocation(location)}
-                        className="text-indigo-600 hover:text-indigo-900"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button 
-                        onClick={() => handleDeleteLocation(location.id)}
-                        className="text-red-600 hover:text-red-900"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <WarehouseDataTable
+          data={locations}
+          onEdit={handleEditLocation}
+          onDelete={handleDeleteLocation}
+          onView={(location) => {
+            setEditingLocation(location);
+            setLocationForm({
+              code: location.code,
+              name: location.name,
+              type: location.type,
+              capacity: location.capacity.toString(),
+              status: location.status,
+            });
+            setShowLocationModal(true);
+          }}
+          onCreate={handleCreateLocation}
+        />
       ) : (
         <div className="bg-white rounded-lg shadow overflow-hidden">
           <table className="min-w-full divide-y divide-gray-200">

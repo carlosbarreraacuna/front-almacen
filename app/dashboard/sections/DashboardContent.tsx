@@ -135,27 +135,6 @@ export default function DashboardContent() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            Bienvenido, {user?.name}
-          </h1>
-          <p className="text-gray-600">
-            Aquí tienes un resumen de tu sistema de almacén
-          </p>
-        </div>
-        <div className="flex items-center space-x-2 text-sm text-gray-500">
-          <Calendar className="w-4 h-4" />
-          <span>{new Date().toLocaleDateString('es-ES', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-          })}</span>
-        </div>
-      </div>
-
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {stats.map((stat, index) => (

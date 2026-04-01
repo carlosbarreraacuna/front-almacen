@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
-import { brandApi } from '@/app/services/api'; // ajusta la ruta según tu proyecto
+import { brandApi } from '@/app/services/api';
+import { BrandsDataTable } from '@/app/components/BrandsDataTable';
 
 type Brand = {
   id: number;
@@ -172,171 +173,36 @@ export default function BrandsPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Marcas</h1>
-          <p className="text-sm text-gray-500">Crea, edita y administra la información de tus marcas.</p>
+    <div className="space-y-6">
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
+          <p className="text-gray-500">Cargando marcas...</p>
         </div>
-        <button
-          onClick={openCreate}
-          className="inline-flex items-center gap-2 rounded-lg bg-gray-900 px-4 py-2 text-white hover:bg-black"
-        >
-          <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-          Nueva marca
-        </button>
-      </div>
-
-      {/* Buscador */}
-      <div className="rounded-xl border bg-white p-4">
-        <div className="relative max-w-md">
-          <input
-            className="w-full rounded-lg border px-10 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/20"
-            placeholder="Buscar por nombre, web, correo, teléfono…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none">
-            <path d="M21 21l-4.3-4.3M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        </div>
-      </div>
-
-      {/* Tabla */}
-      <div className="overflow-x-auto rounded-xl border">
-        <table className="min-w-[960px] w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-600">
-            <tr>
-              <th className="p-3 font-semibold">Logo</th>
-              <th className="p-3 font-semibold">Nombre</th>
-              <th className="p-3 font-semibold">Descripción</th>
-              <th className="p-3 font-semibold">Sitio web</th>
-              <th className="p-3 font-semibold">Contacto</th>
-              <th className="p-3 font-semibold">Estado</th>
-              <th className="p-3 text-right font-semibold">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={7} className="p-6 text-center text-gray-500">
-                  <span className="inline-flex items-center gap-2">
-                    <svg className="h-4 w-4 animate-spin" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                    Cargando marcas…
-                  </span>
-                </td>
-              </tr>
-            ) : current.length === 0 ? (
-              <tr>
-                <td colSpan={7} className="p-6 text-center text-gray-500">No hay resultados.</td>
-              </tr>
-            ) : current.map((b) => (
-              <tr key={b.id} className="border-t hover:bg-gray-50/60">
-                <td className="p-3">
-                  {b.logo_url ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={b.logo_url} alt={b.name} className="h-10 w-10 rounded bg-white object-contain ring-1 ring-gray-200" />
-                  ) : (
-                    <div className="flex h-10 w-10 items-center justify-center rounded bg-gray-100 text-gray-400 ring-1 ring-gray-200">
-                      <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M4 5h16v14H4z" stroke="currentColor" strokeWidth="2"/><path d="M4 16l4-4 3 3 5-5 4 4" stroke="currentColor" strokeWidth="2" fill="none"/></svg>
-                    </div>
-                  )}
-                </td>
-                <td className="p-3 font-medium text-gray-900">{b.name}</td>
-                <td className="p-3 max-w-[320px]">
-                  <span className="line-clamp-2 text-gray-500">{b.description || '—'}</span>
-                </td>
-                <td className="p-3">
-                  {b.website ? (
-                    <a href={b.website} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-blue-600 hover:underline">
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M14 3h7v7M10 14L21 3M5 5h6M3 7h8M5 11h6" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-                      Visitar
-                    </a>
-                  ) : '—'}
-                </td>
-                <td className="p-3 text-gray-600">
-                  <div className="space-y-1">
-                    {b.contact_email ? (
-                      <a className="block hover:underline" href={`mailto:${b.contact_email}`}>{b.contact_email}</a>
-                    ) : null}
-                    {b.contact_phone ? (
-                      <a className="block hover:underline" href={`tel:${b.contact_phone}`}>{b.contact_phone}</a>
-                    ) : null}
-                    {!b.contact_email && !b.contact_phone ? '—' : null}
-                  </div>
-                </td>
-                <td className="p-3">
-                  <span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${b.is_active ? 'bg-green-50 text-green-700 ring-green-200' : 'bg-gray-100 text-gray-600 ring-gray-300'}`}>
-                    {b.is_active ? 'Activa' : 'Inactiva'}
-                  </span>
-                </td>
-                <td className="p-3">
-                  <div className="flex items-center justify-end gap-2">
-                    {/* Toggle activo */}
-                    <button
-                      onClick={() => toggleActive(b)}
-                      className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${
-                        b.is_active ? 'bg-green-600' : 'bg-gray-300'
-                      }`}
-                      aria-label="Cambiar estado"
-                      title="Cambiar estado"
-                    >
-                      <span
-                        className={`inline-block h-6 w-6 transform rounded-full bg-white transition ${
-                          b.is_active ? 'translate-x-7' : 'translate-x-1'
-                        }`}
-                      />
-                    </button>
-
-                    {/* Editar */}
-                    <button
-                      onClick={() => openEdit(b)}
-                      className="inline-flex items-center gap-1 rounded-lg border px-3 py-1.5 text-gray-700 hover:bg-gray-50"
-                    >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M4 21h4l11-11a2.828 2.828 0 1 0-4-4L4 17v4z" stroke="currentColor" strokeWidth="2"/></svg>
-                      Editar
-                    </button>
-
-                    {/* Eliminar */}
-                    <button
-                      onClick={() => confirmDelete(b)}
-                      className="inline-flex items-center gap-1 rounded-lg bg-red-600 px-3 py-1.5 text-white hover:bg-red-700"
-                    >
-                      <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
-                      Eliminar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Paginación */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">
-          Mostrando <b className="text-gray-700">{current.length}</b> de <b className="text-gray-700">{filtered.length}</b> marcas
-        </p>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Anterior
-          </button>
-          <span className="text-sm text-gray-600">Página {page} de {totalPages}</span>
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Siguiente
-          </button>
-        </div>
-      </div>
+      ) : (
+        <BrandsDataTable
+          data={brands}
+          onEdit={openEdit}
+          onDelete={(id) => {
+            const brand = brands.find(b => b.id === id);
+            if (brand) confirmDelete(brand);
+          }}
+          onView={(brand) => {
+            setEditing(brand);
+            setForm({
+              name: brand.name ?? '',
+              description: brand.description ?? '',
+              logo_url: brand.logo_url ?? '',
+              website: brand.website ?? '',
+              contact_email: brand.contact_email ?? '',
+              contact_phone: brand.contact_phone ?? '',
+              is_active: !!brand.is_active,
+            });
+            setOpenForm(true);
+          }}
+          onCreate={openCreate}
+        />
+      )}
 
       {/* Modal Form */}
       {openForm && (

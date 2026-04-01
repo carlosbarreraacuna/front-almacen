@@ -185,6 +185,34 @@ export const productApi = {
   getInventorySummary: async () => {
     return await apiRequest('/inventory/summary');
   },
+
+  // Importar productos desde Excel
+  importProducts: async (file: File) => {
+    const token = Cookies.get('auth_token');
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${API_BASE_URL}/inventory/import`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.message || 'Error al importar productos');
+    }
+
+    return await response.json();
+  },
+
+  // Descargar plantilla de importación
+  getImportTemplate: async () => {
+    return await apiRequest('/inventory/import/template');
+  },
 };
 
 // Servicios para categorías

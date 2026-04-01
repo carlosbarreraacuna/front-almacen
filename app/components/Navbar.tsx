@@ -2,37 +2,114 @@
 
 import React from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Bell, User, Settings, LogOut } from 'lucide-react';
+import { Bell, User, Settings, LogOut } from 'lucide-react';
 
 interface NavbarProps {
   onToggleSidebar: () => void;
+  activeSection?: string;
 }
 
-export default function Navbar({ onToggleSidebar }: NavbarProps) {
+interface BreadcrumbConfig {
+  title: string;
+  subtitle: string;
+}
+
+const breadcrumbConfig: Record<string, BreadcrumbConfig> = {
+  'dashboard': {
+    title: 'Bienvenido, Administrador',
+    subtitle: 'Aquí tienes un resumen de tu sistema de almacén'
+  },
+  'users': {
+    title: 'Gestión de Usuarios',
+    subtitle: 'Administra los usuarios del sistema y sus permisos'
+  },
+  'products': {
+    title: 'Gestión de Productos',
+    subtitle: 'Administra el catálogo de productos'
+  },
+  'inventory': {
+    title: 'Control de Inventario',
+    subtitle: 'Monitorea y gestiona el inventario'
+  },
+  'warehouse': {
+    title: 'Gestión de Almacén',
+    subtitle: 'Administra ubicaciones y movimientos de inventario'
+  },
+  'sales': {
+    title: 'Gestión de Ventas',
+    subtitle: 'Administra las ventas y transacciones'
+  },
+  'direct-sales': {
+    title: 'Venta Directa',
+    subtitle: 'Realiza ventas directas en el punto de venta'
+  },
+  'sales-history': {
+    title: 'Historial de Ventas',
+    subtitle: 'Consulta el historial completo de ventas'
+  },
+  'customers': {
+    title: 'Gestión de Clientes',
+    subtitle: 'Administra la información de tus clientes'
+  },
+  'suppliers': {
+    title: 'Gestión de Proveedores',
+    subtitle: 'Administra tus proveedores y contactos'
+  },
+  'purchase-orders': {
+    title: 'Órdenes de Compra',
+    subtitle: 'Gestiona las órdenes de compra a proveedores'
+  },
+  'reports': {
+    title: 'Reportes y Análisis',
+    subtitle: 'Visualiza estadísticas y genera reportes'
+  },
+  'analytics': {
+    title: 'Análisis Avanzado',
+    subtitle: 'Análisis detallado de métricas del negocio'
+  },
+  'settings': {
+    title: 'Configuración',
+    subtitle: 'Configura los parámetros del sistema'
+  },
+  'categories': {
+    title: 'Gestión de Categorías',
+    subtitle: 'Organiza tus productos por categorías'
+  },
+  'brands': {
+    title: 'Gestión de Marcas',
+    subtitle: 'Administra las marcas de productos'
+  },
+  'roles': {
+    title: 'Gestión de Roles',
+    subtitle: 'Administra roles y permisos del sistema'
+  }
+};
+
+export default function Navbar({ onToggleSidebar, activeSection = 'dashboard' }: NavbarProps) {
   const { user, logout } = useAuth();
   const [showUserMenu, setShowUserMenu] = React.useState(false);
-  const [searchQuery, setSearchQuery] = React.useState('');
 
   const handleLogout = () => {
     logout();
     setShowUserMenu(false);
   };
 
+  const currentBreadcrumb = breadcrumbConfig[activeSection] || {
+    title: 'Dashboard',
+    subtitle: 'Sistema de Gestión de Almacén'
+  };
+
   return (
     <nav className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
-      {/* Left side - Search */}
-      <div className="flex items-center flex-1 max-w-md">
-        <div className="relative w-full">
-          <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <Search className="h-5 w-5 text-gray-400" />
-          </div>
-          <input
-            type="text"
-            placeholder="Buscar..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-          />
+      {/* Left side - Breadcrumb */}
+      <div className="flex items-center flex-1">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">
+            {currentBreadcrumb.title}
+          </h1>
+          <p className="text-sm text-gray-500">
+            {currentBreadcrumb.subtitle}
+          </p>
         </div>
       </div>
 

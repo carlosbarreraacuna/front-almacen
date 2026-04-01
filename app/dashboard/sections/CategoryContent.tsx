@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useMemo, useState } from 'react';
 import { categoryApi } from '@/app/services/api';
+import { CategoriesDataTable } from '@/app/components/CategoriesDataTable';
 
 type Category = {
   id: number;
@@ -185,87 +186,35 @@ export default function CategoriesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestión de Categorías</h1>
-          <p className="text-sm text-gray-500">Crea, edita y organiza tus categorías.</p>
+    <div className="space-y-6">
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
+          <p className="text-gray-500">Cargando categorías...</p>
         </div>
-        <button onClick={openCreate} className="rounded-lg bg-gray-900 px-4 py-2 text-white hover:bg-black">
-          Nueva categoría
-        </button>
-      </div>
-
-      {/* Buscador */}
-      <div className="rounded-xl border bg-white p-4">
-        <div className="relative max-w-md">
-          <input
-            className="w-full rounded-lg border px-10 py-2 text-sm outline-none focus:ring-2 focus:ring-gray-900/20"
-            placeholder="Buscar por nombre o descripción…"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-          <svg className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" viewBox="0 0 24 24" fill="none">
-            <path d="M21 21l-4.3-4.3M10 18a8 8 0 1 1 0-16 8 8 0 0 1 0 16Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
-          </svg>
-        </div>
-      </div>
-
-      {/* Tabla */}
-      <div className="overflow-x-auto rounded-xl border">
-        <table className="min-w-[900px] w-full text-sm">
-          <thead className="bg-gray-50 text-left text-gray-600">
-            <tr>
-              <th className="p-3 font-semibold">Nombre</th>
-              <th className="p-3 font-semibold">Padre</th>
-              <th className="p-3 font-semibold">Descripción</th>
-              <th className="p-3 font-semibold">Orden</th>
-              <th className="p-3 font-semibold">Estado</th>
-              <th className="p-3 text-right font-semibold">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={6} className="p-6 text-center text-gray-500">Cargando…</td></tr>
-            ) : current.length === 0 ? (
-              <tr><td colSpan={6} className="p-6 text-center text-gray-500">Sin resultados.</td></tr>
-            ) : current.map((c) => (
-              <tr key={c.id} className="border-t hover:bg-gray-50/60">
-                <td className="p-3 font-medium text-gray-900">{c.name}</td>
-                <td className="p-3 text-gray-600">{rows.find(r => r.id === c.parent_id)?.name ?? '—'}</td>
-                <td className="p-3 max-w-[360px]"><span className="line-clamp-2 text-gray-500">{c.description || '—'}</span></td>
-                <td className="p-3">{c.sort_order ?? 0}</td>
-                <td className="p-3">
-                  <button
-                    onClick={() => toggleActive(c)}
-                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${c.is_active ? 'bg-green-600' : 'bg-gray-300'}`}
-                    title="Cambiar estado"
-                  >
-                    <span className={`inline-block h-6 w-6 transform rounded-full bg-white transition ${c.is_active ? 'translate-x-7' : 'translate-x-1'}`} />
-                  </button>
-                </td>
-                <td className="p-3">
-                  <div className="flex items-center justify-end gap-2">
-                    <button onClick={() => openEdit(c)} className="rounded-lg border px-3 py-1.5 text-gray-700 hover:bg-gray-50">Editar</button>
-                    <button onClick={() => confirmDelete(c)} className="rounded-lg bg-red-600 px-3 py-1.5 text-white hover:bg-red-700">Eliminar</button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* Paginación */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-gray-500">Mostrando <b className="text-gray-700">{current.length}</b> de <b className="text-gray-700">{filtered.length}</b> categorías</p>
-        <div className="flex items-center gap-2">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">Anterior</button>
-          <span className="text-sm text-gray-600">Página {page} de {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="rounded-lg border px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50">Siguiente</button>
-        </div>
-      </div>
+      ) : (
+        <CategoriesDataTable
+          data={rows}
+          onEdit={openEdit}
+          onDelete={(id) => {
+            const category = rows.find(c => c.id === id);
+            if (category) confirmDelete(category);
+          }}
+          onView={(category) => {
+            setEditing(category);
+            setForm({
+              name: category.name ?? '',
+              description: category.description ?? '',
+              parent_id: category.parent_id ?? null,
+              image_url: category.image_url ?? '',
+              is_active: !!category.is_active,
+              sort_order: category.sort_order ?? 0,
+            });
+            setOpenForm(true);
+          }}
+          onCreate={openCreate}
+        />
+      )}
 
       {/* Modal Form */}
       {openForm && (

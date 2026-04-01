@@ -112,7 +112,10 @@ export default function DashboardLayout({
         {/* Main Content */}
         <div className="flex-1 lg:ml-0">
           {/* Top Navigation */}
-          <Navbar onToggleSidebar={() => setSidebarOpen(!sidebarOpen)} />
+          <Navbar 
+            onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
+            activeSection={activeSection}
+          />
           
           {/* Page Content */}
           <main className="p-6">

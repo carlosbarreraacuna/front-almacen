@@ -387,10 +387,10 @@ const KeyboardBarcodeReader: React.FC<KeyboardBarcodeReaderProps> = ({
           {/* Instrucciones */}
           <div className="text-xs text-gray-500 text-center space-y-1">
             <p>• Conecte su lector de códigos de barras USB</p>
-            <p>• Haga clic en "Iniciar Escucha" y escanee un código</p>
+            <p>• Haga clic en &quot;Iniciar Escucha&quot; y escanee un código</p>
             <p>• El lector debe estar configurado para enviar Enter al final</p>
             <p>• Funciona con lectores que actúan como teclado (HID)</p>
-          </div>)}
+          </div>
         </div>
         
         {/* Input invisible para capturar entrada del lector */}
