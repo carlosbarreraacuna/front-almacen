@@ -50,6 +50,7 @@ interface ProductFormData {
   status: 'active' | 'inactive';
   description?: string;
   image?: string;
+  images?: File[];
 }
 
 interface ProductFormErrors {
@@ -181,6 +182,31 @@ const loadProducts = async () => {
     }
   };
 
+  // Función para subir imágenes de producto
+  const uploadProductImages = async (productId: number, images: File[]) => {
+    try {
+      const formData = new FormData();
+      images.forEach((image, index) => {
+        formData.append(`images[${index}]`, image);
+      });
+
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/inventory/${productId}/images`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al subir imágenes');
+      }
+    } catch (err) {
+      console.error('Error uploading images:', err);
+      throw err;
+    }
+  };
+
   // Función para crear nueva categoría
   const createCategory = async () => {
     const name = newCategoryName.trim();
@@ -236,7 +262,12 @@ const loadProducts = async () => {
 
       const response = await productApi.createProduct(createData);
 
-      if (response?.success) {
+      if (response?.success && response.data) {
+        // Si hay imágenes, subirlas
+        if (formData.images && formData.images.length > 0) {
+          await uploadProductImages(response.data.id, formData.images);
+        }
+        
         setModalMode(null);
         await loadProducts();
       }
@@ -650,6 +681,72 @@ const loadProducts = async () => {
                 disabled={modalMode === 'view'}
               />
             </div>
+
+            {modalMode !== 'view' && (
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Imágenes del Producto (Máximo 5)
+                </label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    multiple
+                    onChange={(e) => {
+                      const files = Array.from(e.target.files || []);
+                      if (files.length > 5) {
+                        alert('Máximo 5 imágenes por producto');
+                        return;
+                      }
+                      setFormData((prev) => ({ ...prev, images: files }));
+                    }}
+                    className="hidden"
+                    id="product-images"
+                  />
+                  <label htmlFor="product-images" className="cursor-pointer">
+                    <div className="flex flex-col items-center">
+                      <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                      </svg>
+                      <p className="text-sm text-gray-600">
+                        Haz clic para seleccionar imágenes
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        JPG, PNG, WEBP (máx. 5MB por imagen)
+                      </p>
+                    </div>
+                  </label>
+                </div>
+                {formData.images && formData.images.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm text-gray-600 mb-2">
+                      {formData.images.length} imagen(es) seleccionada(s)
+                    </p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {formData.images.map((file, index) => (
+                        <div key={index} className="relative group">
+                          <img
+                            src={URL.createObjectURL(file)}
+                            alt={`Preview ${index + 1}`}
+                            className="w-full h-20 object-cover rounded border border-gray-300"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newImages = formData.images?.filter((_, i) => i !== index);
+                              setFormData((prev) => ({ ...prev, images: newImages }));
+                            }}
+                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {modalMode !== 'view' && (
               <div className="flex justify-end space-x-3 pt-4">
