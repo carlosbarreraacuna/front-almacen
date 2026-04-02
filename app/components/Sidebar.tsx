@@ -28,6 +28,7 @@ import {
   Briefcase,
   CreditCard,
   Users2,
+  Ticket,
   PieChart,
   Cog
 } from 'lucide-react';
@@ -105,6 +106,13 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
       icon: PieChart, // Puedes elegir otro icono si lo prefieres
       permission: 'categories.view',
       description: 'Gestión de categorías'
+    },
+    {
+      id: 'coupons',
+      name: 'Cupones',
+      icon: Ticket,
+      permission: 'sales.view',
+      description: 'Gestión de cupones promocionales'
     }
   ]
 },

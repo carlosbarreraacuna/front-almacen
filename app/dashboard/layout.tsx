@@ -25,6 +25,7 @@ import RolesContent from './sections/RolesContent';
 import SettingsContent from './sections/SettingsContent';
 import BrandsContent from './sections/BrandsContent';
 import CategoryContent from './sections/CategoryContent';
+import CouponsContent from './sections/CouponsContent';
 
 export default function DashboardLayout({
   children,
@@ -93,6 +94,8 @@ export default function DashboardLayout({
         return <BrandsContent />;
       case 'categories':
         return <CategoryContent />;
+      case 'coupons':
+        return <CouponsContent />;
       default:
         return <DashboardContent />;
     }
