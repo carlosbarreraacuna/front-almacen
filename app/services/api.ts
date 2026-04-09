@@ -34,6 +34,7 @@ export interface ApiProduct {
   id: number;
   name: string;
   description?: string;
+  compatible_models?: string;
   sku: string;
   barcode?: string;
   category_id?: number;
@@ -77,14 +78,15 @@ export interface ApiProduct {
 
 export interface CreateProductData {
   name: string;
-    description?: string;
-    sku: string;
-    barcode?: string;
-    category_id?: number;
-    brand_id?: number;
-    unit_price: number;
-    cost_price: number;
-    stock_quantity: number;
+  description?: string;
+  compatible_models?: string;
+  sku: string;
+  barcode?: string;
+  category_id?: number;
+  brand_id?: number;
+  unit_price: number;
+  cost_price: number;
+  stock_quantity: number;
   min_stock_level: number;
   max_stock_level?: number;
   unit_of_measure: string;

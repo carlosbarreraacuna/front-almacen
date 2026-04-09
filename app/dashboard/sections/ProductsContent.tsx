@@ -12,6 +12,7 @@ import {
 import {
   productApi,
   categoryApi,
+  brandApi,
   ApiProduct,
   CreateProductData,
   UpdateProductData,
@@ -24,32 +25,36 @@ interface Product {
   id: number;
   name: string;
   sku: string;
-  category: string; // nombre legible
+  category: string;
   price: number;
   stock: number;
   min_stock: number;
   status: 'active' | 'inactive';
   image?: string;
   description?: string;
+  compatible_models?: string;
   created_at?: string;
   updated_at?: string;
-  // Campos adicionales del backend
   cost_price?: number;
   unit_of_measure?: string;
   is_active?: boolean;
-  category_id?: number; // ID real de categoría
+  category_id?: number;
+  brand_id?: number;
+  brand_name?: string;
 }
 
 interface ProductFormData {
   name: string;
   sku: string;
-  category: string; // guarda el ID como string para el <select>
+  category: string;
+  brand_id: string;
   price: number;
   stock: number;
   min_stock: number;
+  unit_of_measure: string;
+  compatible_models: string;
   status: 'active' | 'inactive';
-  description?: string;
-  image?: string;
+  description: string;
   images?: File[];
 }
 
@@ -61,6 +66,7 @@ interface ProductFormErrors {
   stock?: string;
   min_stock?: string;
   description?: string;
+  compatible_models?: string;
 }
 
 interface ProductFilters {
@@ -72,12 +78,14 @@ interface ProductFilters {
 type ModalMode = 'create' | 'edit' | 'view' | null;
 
 type Category = { id: number; name: string };
+type Brand = { id: number; name: string };
 
 export default function ProductsContent() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
 
   const [modalMode, setModalMode] = useState<ModalMode>(null);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
@@ -100,6 +108,7 @@ export default function ProductsContent() {
   useEffect(() => {
     loadProducts();
     loadCategories();
+    loadBrands();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -120,6 +129,7 @@ const loadProducts = async () => {
       category_id: filters.category ? parseInt(filters.category) : undefined,
       low_stock: filters.status === 'low_stock' ? true : undefined,
       out_of_stock: filters.status === 'out_of_stock' ? true : undefined,
+      per_page: 1000,
     });
 
     if (response?.success) {
@@ -141,11 +151,14 @@ const loadProducts = async () => {
         status: apiProduct.is_active ? 'active' : 'inactive',
         image: apiProduct.image_url,
         description: apiProduct.description,
+        compatible_models: apiProduct.compatible_models,
         created_at: apiProduct.created_at,
         updated_at: apiProduct.updated_at,
         cost_price: toNumber(apiProduct.cost_price),
         unit_of_measure: apiProduct.unit_of_measure,
         is_active: apiProduct.is_active,
+        brand_id: apiProduct.brand_id,
+        brand_name: apiProduct.brand?.name,
       }));
 
       setProducts(mappedProducts);
@@ -160,6 +173,17 @@ const loadProducts = async () => {
   }
 };
 
+
+  const loadBrands = async () => {
+    try {
+      const response = await brandApi.getBrands();
+      const pageObj = response?.data;
+      const items = Array.isArray(pageObj?.data) ? pageObj.data : Array.isArray(response?.data) ? response.data : [];
+      setBrands(items.map((b: any) => ({ id: b.id, name: b.name })));
+    } catch (err) {
+      console.error('Error loading brands:', err);
+    }
+  };
 
   // Función para cargar categorías (una sola página del backend paginado)
   const loadCategories = async () => {
@@ -251,13 +275,15 @@ const loadProducts = async () => {
         name: formData.name,
         sku: formData.sku,
         unit_price: formData.price,
-        cost_price: formData.price * 0.7, // estimado
+        cost_price: formData.price,
         stock_quantity: formData.stock,
         min_stock_level: formData.min_stock,
-        unit_of_measure: 'unidad',
+        unit_of_measure: formData.unit_of_measure || 'unidad',
         is_active: formData.status === 'active',
-        description: formData.description,
+        description: formData.description || undefined,
+        compatible_models: formData.compatible_models || undefined,
         category_id: formData.category ? parseInt(formData.category) : undefined,
+        brand_id: formData.brand_id ? parseInt(formData.brand_id) : undefined,
       };
 
       const response = await productApi.createProduct(createData);
@@ -287,11 +313,15 @@ const loadProducts = async () => {
         name: formData.name,
         sku: formData.sku,
         unit_price: formData.price,
+        cost_price: formData.price,
         stock_quantity: formData.stock,
         min_stock_level: formData.min_stock,
+        unit_of_measure: formData.unit_of_measure || 'unidad',
         is_active: formData.status === 'active',
-        description: formData.description,
+        description: formData.description || undefined,
+        compatible_models: formData.compatible_models || undefined,
         category_id: formData.category ? parseInt(formData.category) : undefined,
+        brand_id: formData.brand_id ? parseInt(formData.brand_id) : undefined,
       };
 
       const response = await productApi.updateProduct(id, updateData);
@@ -378,16 +408,21 @@ const loadProducts = async () => {
   const ProductModal: React.FC<{ pendingCategoryId: string | null }> = ({
     pendingCategoryId,
   }) => {
-    const [formData, setFormData] = useState<ProductFormData>({
+    const emptyForm: ProductFormData = {
       name: '',
       sku: '',
       category: '',
+      brand_id: '',
       price: 0,
       stock: 0,
       min_stock: 0,
+      unit_of_measure: '',
+      compatible_models: '',
       status: 'active',
       description: '',
-    });
+    };
+
+    const [formData, setFormData] = useState<ProductFormData>(emptyForm);
     const [errors, setErrors] = useState<ProductFormErrors>({});
 
     useEffect(() => {
@@ -395,25 +430,18 @@ const loadProducts = async () => {
         setFormData({
           name: selectedProduct.name,
           sku: selectedProduct.sku,
-          // ⚠️ usar ID de categoría
           category: selectedProduct.category_id?.toString() || '',
+          brand_id: selectedProduct.brand_id?.toString() || '',
           price: selectedProduct.price,
           stock: selectedProduct.stock,
           min_stock: selectedProduct.min_stock,
+          unit_of_measure: selectedProduct.unit_of_measure || '',
+          compatible_models: selectedProduct.compatible_models || '',
           status: selectedProduct.status,
           description: selectedProduct.description || '',
         });
       } else if (modalMode === 'create') {
-        setFormData({
-          name: '',
-          sku: '',
-          category: '',
-          price: 0,
-          stock: 0,
-          min_stock: 0,
-          status: 'active',
-          description: '',
-        });
+        setFormData(emptyForm);
       }
       setErrors({});
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -492,194 +520,127 @@ const loadProducts = async () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Nombre + SKU */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Nombre *
-                </label>
-                <input
-                  type="text"
-                  value={formData.name}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
+                <input type="text" value={formData.name}
                   onChange={(e) => handleInputChange('name', e.target.value)}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.name ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  disabled={modalMode === 'view'}
-                />
-                {errors.name && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.name}
-                  </p>
-                )}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.name ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={modalMode === 'view'} />
+                {errors.name && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.name}</p>}
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  SKU *
-                </label>
-                <input
-                  type="text"
-                  value={formData.sku}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Referencia (SKU) *</label>
+                <input type="text" value={formData.sku}
                   onChange={(e) => handleInputChange('sku', e.target.value.toUpperCase())}
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.sku ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  disabled={modalMode === 'view'}
-                />
-                {errors.sku && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.sku}
-                  </p>
-                )}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.sku ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={modalMode === 'view'} />
+                {errors.sku && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.sku}</p>}
               </div>
             </div>
 
+            {/* Categoría + Marca */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Categoría *
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
                 <div className="flex gap-2">
-                  <select
-                    value={formData.category}
+                  <select value={formData.category}
                     onChange={(e) => handleInputChange('category', e.target.value)}
-                    className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                      errors.category ? 'border-red-500' : 'border-gray-300'
-                    }`}
-                    disabled={modalMode === 'view'}
-                  >
+                    className={`flex-1 px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.category ? 'border-red-500' : 'border-gray-300'}`}
+                    disabled={modalMode === 'view'}>
                     <option value="">Seleccionar categoría</option>
-                    {categories.map((category) => (
-                      <option key={category.id} value={category.id.toString()}>
-                        {category.name}
-                      </option>
-                    ))}
+                    {categories.map((c) => <option key={c.id} value={c.id.toString()}>{c.name}</option>)}
                   </select>
                   {modalMode !== 'view' && (
-                    <button
-                      type="button"
-                      onClick={() => setShowCategoryModal(true)}
-                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 focus:ring-2 focus:ring-green-500 transition-colors"
-                      title="Crear nueva categoría"
-                    >
+                    <button type="button" onClick={() => setShowCategoryModal(true)}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" title="Nueva categoría">
                       <Plus className="w-4 h-4" />
                     </button>
                   )}
                 </div>
-                {errors.category && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.category}
-                  </p>
-                )}
+                {errors.category && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.category}</p>}
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Precio *
-                </label>
-                <input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={formData.price}
-                  onChange={(e) =>
-                    handleInputChange('price', parseFloat(e.target.value) || 0)
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.price ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  disabled={modalMode === 'view'}
-                />
-                {errors.price && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.price}
-                  </p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                <select value={formData.brand_id}
+                  onChange={(e) => handleInputChange('brand_id', e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={modalMode === 'view'}>
+                  <option value="">Seleccionar marca</option>
+                  {brands.map((b) => <option key={b.id} value={b.id.toString()}>{b.name}</option>)}
+                </select>
               </div>
             </div>
 
+            {/* Precio + Presentación */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Precio *</label>
+                <input type="number" step="0.01" min="0" value={formData.price}
+                  onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.price ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={modalMode === 'view'} />
+                {errors.price && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.price}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Presentación</label>
+                <input type="text" value={formData.unit_of_measure}
+                  onChange={(e) => handleInputChange('unit_of_measure', e.target.value)}
+                  placeholder="Ej: CAJA X10, unidad"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={modalMode === 'view'} />
+              </div>
+            </div>
+
+            {/* Stock + Stock Mínimo + Estado */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stock *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.stock}
-                  onChange={(e) =>
-                    handleInputChange('stock', parseInt(e.target.value) || 0)
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.stock ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  disabled={modalMode === 'view'}
-                />
-                {errors.stock && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.stock}
-                  </p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stock *</label>
+                <input type="number" min="0" value={formData.stock}
+                  onChange={(e) => handleInputChange('stock', parseInt(e.target.value) || 0)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.stock ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={modalMode === 'view'} />
+                {errors.stock && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.stock}</p>}
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Stock Mínimo *
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  value={formData.min_stock}
-                  onChange={(e) =>
-                    handleInputChange('min_stock', parseInt(e.target.value) || 0)
-                  }
-                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
-                    errors.min_stock ? 'border-red-500' : 'border-gray-300'
-                  }`}
-                  disabled={modalMode === 'view'}
-                />
-                {errors.min_stock && (
-                  <p className="text-red-500 text-sm mt-1 flex items-center">
-                    <AlertCircle className="w-4 h-4 mr-1" />
-                    {errors.min_stock}
-                  </p>
-                )}
+                <label className="block text-sm font-medium text-gray-700 mb-1">Stock Mínimo *</label>
+                <input type="number" min="0" value={formData.min_stock}
+                  onChange={(e) => handleInputChange('min_stock', parseInt(e.target.value) || 0)}
+                  className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.min_stock ? 'border-red-500' : 'border-gray-300'}`}
+                  disabled={modalMode === 'view'} />
+                {errors.min_stock && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.min_stock}</p>}
               </div>
-
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Estado
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) =>
-                    handleInputChange('status', e.target.value as 'active' | 'inactive')
-                  }
+                <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                <select value={formData.status}
+                  onChange={(e) => handleInputChange('status', e.target.value as 'active' | 'inactive')}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  disabled={modalMode === 'view'}
-                >
+                  disabled={modalMode === 'view'}>
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
                 </select>
               </div>
             </div>
 
+            {/* Modelos Compatibles */}
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Descripción
-              </label>
-              <textarea
-                value={formData.description}
+              <label className="block text-sm font-medium text-gray-700 mb-1">Modelos Compatibles</label>
+              <textarea value={formData.compatible_models}
+                onChange={(e) => handleInputChange('compatible_models', e.target.value)}
+                rows={2} placeholder="Ej: BM100 / PULSAR 180 / BOXER 100"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                disabled={modalMode === 'view'} />
+            </div>
+
+            {/* Descripción */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Descripción</label>
+              <textarea value={formData.description}
                 onChange={(e) => handleInputChange('description', e.target.value)}
-                rows={3}
+                rows={2}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                disabled={modalMode === 'view'}
-              />
+                disabled={modalMode === 'view'} />
             </div>
 
             {modalMode !== 'view' && (
@@ -809,22 +770,9 @@ const loadProducts = async () => {
             <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4" />
             <p className="text-gray-500">Cargando productos...</p>
           </div>
-        ) : products.length === 0 ? (
-          <div className="text-center py-12">
-            <Package className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron productos</h3>
-            <p className="text-gray-500 mb-4">No hay productos registrados en el sistema.</p>
-            <button
-              onClick={() => setModalMode('create')}
-              className="flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 mx-auto"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Crear Primer Producto</span>
-            </button>
-          </div>
         ) : (
           <ProductsDataTable
-            data={products}
+            data={filteredProducts}
             onEdit={(product) => {
               setSelectedProduct(product);
               setModalMode('edit');
