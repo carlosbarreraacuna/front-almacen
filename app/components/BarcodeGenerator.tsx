@@ -64,7 +64,7 @@ const BarcodeGenerator: React.FC<BarcodeGeneratorProps> = ({
   useEffect(() => {
     async function fetchProducts() {
       try {
-        const response = await productApi.getProducts();
+        const response = await productApi.getProducts({ per_page: 1000 });
         if (response?.success) {
           const productsArray = Array.isArray(response.data?.data)
             ? response.data.data

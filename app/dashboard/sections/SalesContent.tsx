@@ -171,13 +171,47 @@ export default function SalesContent() {
     }
   ]);
 
-  // Autocompletado inteligente
+  // Búsqueda de productos (filtrado client-side, sin dropdown)
+  const [productSearchQuery, setProductSearchQuery] = useState('');
+
+  // Modo escaneo con lector de códigos
+  const [scanMode, setScanMode] = useState(false);
+  const [scanFeedback, setScanFeedback] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+  const scanInputRef = useRef<HTMLInputElement>(null);
+  const feedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showScanFeedback = (message: string, type: 'success' | 'error') => {
+    setScanFeedback({ message, type });
+    if (feedbackTimerRef.current) clearTimeout(feedbackTimerRef.current);
+    feedbackTimerRef.current = setTimeout(() => setScanFeedback(null), 2500);
+  };
+
+  const handleScanEnter = (value: string) => {
+    const code = value.trim().replace(/'/g, '-');
+    if (!code) return;
+    const product = products.find(p => p.code.toLowerCase() === code.toLowerCase());
+    if (product) {
+      if (product.stock === 0) {
+        showScanFeedback(`${product.name} — Sin stock`, 'error');
+      } else {
+        addToCart(product);
+        showScanFeedback(`✓ ${product.name} agregado`, 'success');
+      }
+    } else {
+      showScanFeedback(`Código no encontrado: ${code}`, 'error');
+    }
+    setProductSearchQuery('');
+  };
+
+  // Enfocar input de escaneo al activar el modo
+  useEffect(() => {
+    if (scanMode && scanInputRef.current) {
+      scanInputRef.current.focus();
+    }
+  }, [scanMode]);
+
+  // Autocompletado solo para clientes
   const {
-    productQuery: productSearchQuery,
-    setProductQuery: setProductSearchQuery,
-    productResults,
-    isProductLoading: isLoadingProducts,
-    customerProductSuggestions: productSuggestions,
     customerQuery: customerSearchQuery,
     setCustomerQuery: setCustomerSearchQuery,
     customerResults,
@@ -189,56 +223,16 @@ export default function SalesContent() {
     currentCustomer: selectedCustomer
   });
 
-
-
-
   const addToCart = (product: Product) => {
     const existingItem = cart.find(item => item.product.id === product.id);
     if (existingItem) {
-      setCart(cart.map(item => 
-        item.product.id === product.id 
+      setCart(cart.map(item =>
+        item.product.id === product.id
           ? { ...item, quantity: item.quantity + 1 }
           : item
       ));
     } else {
       setCart([...cart, { product, quantity: 1, discount: 0 }]);
-    }
-    // Limpiar búsqueda después de agregar
-    setProductSearchQuery('');
-  };
-
-  const handleProductSelect = (product: Product) => {
-    addToCart(product);
-  };
-
-  // Función para manejar búsqueda directa con Enter (igual que botón Agregar)
-  const handleEnterSearch = (searchTerm: string) => {
-    console.log('🔍 SalesContent - handleEnterSearch called with:', searchTerm);
-    
-    // Si hay resultados de búsqueda disponibles, agregar el primero
-    if (productResults.length > 0) {
-      const firstResult = productResults[0];
-      console.log('✅ SalesContent - Adding first search result to cart:', firstResult.item);
-      addToCart(firstResult.item);
-      // Limpiar búsqueda después de agregar
-      setProductSearchQuery('');
-      return;
-    }
-    
-    // Si no hay resultados, buscar por código exacto como fallback
-    const product = products.find(p => 
-      p.code.toLowerCase() === searchTerm.toLowerCase() ||
-      p.code === searchTerm
-    );
-    
-    if (product) {
-      console.log('✅ SalesContent - Product found by exact code, adding to cart:', product);
-      addToCart(product);
-      // Limpiar búsqueda después de agregar
-      setProductSearchQuery('');
-    } else {
-      console.log('❌ SalesContent - Product not found:', searchTerm);
-      // TODO: Mostrar notificación de producto no encontrado
     }
   };
 
@@ -592,7 +586,7 @@ export default function SalesContent() {
       {/* Main Content - Nueva estructura de dos columnas responsive */}
       <div className="flex flex-col xl:flex-row gap-4 lg:gap-6">
         {/* Lado Izquierdo - Lista de Productos */}
-        <div className="bg-white rounded-xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] xl:w-[70%]">
+        <div className="bg-white rounded-xl shadow-[0_2px_16px_rgba(0,0,0,0.06)] xl:w-[70%] flex flex-col min-h-0">
           <div className="px-3 sm:px-4 py-3 border-b border-gray-100 flex flex-wrap items-center gap-2">
             <h3 className="text-sm sm:text-base font-semibold flex items-center gap-2 mr-2">
               <Package className="w-4 h-4" />
@@ -635,28 +629,71 @@ export default function SalesContent() {
             </div>
           </div>
 
-          <div className="p-3 sm:p-4">
-            <div className="flex-1 min-w-0">
-            <div className="mb-4">
-              <SmartAutocomplete<Product>
-                type="product"
-                placeholder="Escribe código y presiona Enter para agregar al carrito..."
-                value={productSearchQuery}
-                onChange={setProductSearchQuery}
-                results={productResults}
-                isLoading={isLoadingProducts}
-                onSelect={handleProductSelect}
-                suggestions={productSuggestions}
-                onEnterSearch={handleEnterSearch}
-              />
+          <div className="p-3 sm:p-4 flex flex-col flex-1 min-h-0 max-h-[550px]">
+            <div className="flex flex-col flex-1 min-h-0">
+            <div className="mb-4 space-y-1.5">
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  {scanMode
+                    ? <QrCode className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-500 pointer-events-none" />
+                    : <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 pointer-events-none" />
+                  }
+                  <input
+                    ref={scanInputRef}
+                    type="text"
+                    placeholder={scanMode ? 'Escanea o escribe el código y presiona Enter...' : 'Buscar por nombre, código, categoría, modelos...'}
+                    value={productSearchQuery}
+                    onChange={(e) => setProductSearchQuery(e.target.value.replace(/'/g, '-'))}
+                    onKeyDown={(e) => {
+                      if (scanMode && e.key === 'Enter') {
+                        e.preventDefault();
+                        handleScanEnter(productSearchQuery);
+                      }
+                    }}
+                    className={`w-full pl-9 pr-4 py-2 text-sm rounded-lg focus:outline-none transition-all ${
+                      scanMode
+                        ? 'border-2 border-green-400 focus:border-green-500 focus:ring-2 focus:ring-green-500/20 bg-green-50/30 font-mono'
+                        : 'border border-gray-200 focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20 bg-white'
+                    }`}
+                  />
+                </div>
+                <button
+                  onClick={() => setScanMode(v => !v)}
+                  className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all whitespace-nowrap ${
+                    scanMode
+                      ? 'bg-green-600 text-white shadow-[0_2px_8px_rgba(22,163,74,0.35)]'
+                      : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
+                  }`}
+                >
+                  <QrCode className="w-3.5 h-3.5" />
+                  {scanMode ? 'Escaneo activo' : 'Modo escaneo'}
+                </button>
+              </div>
+              {scanFeedback && (
+                <div className={`text-xs px-3 py-1.5 rounded-lg font-medium ${
+                  scanFeedback.type === 'success'
+                    ? 'bg-green-50 text-green-700 border border-green-200'
+                    : 'bg-red-50 text-red-700 border border-red-200'
+                }`}>
+                  {scanFeedback.message}
+                </div>
+              )}
             </div>
 
             {/* Tabla de productos */}
-            <div className="max-h-screen overflow-y-auto rounded-xl bg-gray-50/40">
+            <div className="flex-1 min-h-0 overflow-y-auto rounded-xl bg-gray-50/40">
 
               {(() => {
-                const displayList: Product[] = productSearchQuery.trim()
-                  ? productResults.map((r: any) => r.item)
+                const q = productSearchQuery.trim().toLowerCase();
+                const displayList: Product[] = q
+                  ? products.filter(p =>
+                      p.name.toLowerCase().includes(q) ||
+                      p.code.toLowerCase().includes(q) ||
+                      p.category.toLowerCase().includes(q) ||
+                      (p.compatible_models || '').toLowerCase().includes(q) ||
+                      String(p.price).includes(q) ||
+                      String(p.stock).includes(q)
+                    )
                   : products;
 
                 if (displayList.length === 0) {
@@ -672,33 +709,18 @@ export default function SalesContent() {
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50/80 sticky top-0 z-10">
                       <tr className="border-b border-gray-100">
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-14"></th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-28">SKU</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Producto</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-32">Categoría</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-28">Precio</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-20">Stock</th>
-                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Modelos Compatibles</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-96">Modelos Compatibles</th>
                         <th className="px-3 py-2.5 w-24"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
                       {displayList.map((product) => (
                         <tr key={product.id} className={`hover:bg-blue-50 transition-colors ${product.stock === 0 ? 'opacity-50' : ''}`}>
-                          {/* Imagen */}
-                          <td className="px-3 py-2.5">
-                            {product.image_url ? (
-                              <img
-                                src={product.image_url}
-                                alt={product.name}
-                                className="w-10 h-10 object-cover rounded-lg"
-                              />
-                            ) : (
-                              <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                <Package className="w-5 h-5 text-gray-300" />
-                              </div>
-                            )}
-                          </td>
                           {/* SKU */}
                           <td className="px-3 py-2.5">
                             <span className="font-mono text-xs text-gray-600 font-medium">{product.code}</span>
@@ -722,14 +744,14 @@ export default function SalesContent() {
                               product.stock > 0  ? 'bg-yellow-100 text-yellow-700' :
                               'bg-red-100 text-red-700'
                             }`}>
-                              {product.stock > 0 ? `Stock: ${product.stock}` : 'Agotado'}
+                              {product.stock > 0 ? product.stock : 'Agotado'}
                             </span>
                           </td>
                           {/* Modelos compatibles */}
-                          <td className="px-3 py-2.5 max-w-[200px]">
+                          <td className="px-3 py-2.5 w-96">
                             {product.compatible_models ? (
                               <div className="relative group">
-                                <span className="text-xs text-gray-500 leading-snug line-clamp-2 cursor-pointer underline decoration-dotted decoration-gray-400 hover:text-blue-600 hover:decoration-blue-400">
+                                <span className="text-xs text-gray-500 leading-snug cursor-pointer underline decoration-dotted decoration-gray-400 hover:text-blue-600 hover:decoration-blue-400">
                                   {product.compatible_models}
                                 </span>
                                 {/* Tooltip */}
@@ -749,10 +771,9 @@ export default function SalesContent() {
                             <button
                               onClick={() => addToCart(product)}
                               disabled={product.stock === 0}
-                              className="flex items-center gap-1 bg-blue-600 text-white px-3 py-1.5 rounded-lg hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-xs font-medium transition-colors whitespace-nowrap"
+                              className="flex items-center justify-center bg-blue-600 text-white px-2.5 py-1.5 rounded-lg hover:bg-blue-700 disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed transition-colors"
                             >
                               <Plus className="w-3.5 h-3.5" />
-                              Agregar
                             </button>
                           </td>
                         </tr>
