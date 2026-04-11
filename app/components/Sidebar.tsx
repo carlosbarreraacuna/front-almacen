@@ -129,13 +129,6 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           description: 'Realizar ventas'
         },
         {
-          id: 'direct-sales',
-          name: 'Venta Directa',
-          icon: CreditCard,
-          permission: 'sales.create',
-          description: 'Venta directa simplificada'
-        },
-        {
           id: 'sales-history',
           name: 'Historial de Ventas',
           icon: FileText,
@@ -307,7 +300,7 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
       {/* Sidebar */}
       <div className={`
         fixed top-0 left-0 z-50 h-full w-64 sm:w-72 lg:w-64 bg-white border-r border-gray-200 transform transition-transform duration-300 ease-in-out
-        lg:translate-x-0 lg:static lg:inset-0
+        lg:translate-x-0 lg:static lg:inset-0 lg:flex lg:flex-col lg:shrink-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
         shadow-lg lg:shadow-none
       `}>

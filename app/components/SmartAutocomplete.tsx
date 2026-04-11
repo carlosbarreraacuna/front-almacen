@@ -52,6 +52,7 @@ interface SmartAutocompleteProps<T> {
   onSelect: (item: T) => void;
   suggestions?: T[];
   className?: string;
+  inputClassName?: string;
   onEnterSearch?: (searchTerm: string) => void;
 }
 
@@ -235,6 +236,7 @@ export default function SmartAutocomplete<T extends Product | Customer>({
   onSelect,
   suggestions = [],
   className = '',
+  inputClassName = '',
   onEnterSearch
 }: SmartAutocompleteProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
@@ -364,7 +366,7 @@ export default function SmartAutocomplete<T extends Product | Customer>({
           spellCheck={false}
           className={`w-full pl-10 pr-10 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
             isFocused ? 'ring-2 ring-blue-500 border-transparent' : 'border-gray-300'
-          }`}
+          } ${inputClassName}`}
         />
         <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex items-center space-x-1">
           {isLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}

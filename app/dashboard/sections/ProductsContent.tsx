@@ -18,8 +18,18 @@ import {
   UpdateProductData,
 } from '../../services/api';
 import Cookies from 'js-cookie';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
+const STORAGE_BASE = API_BASE.replace('/api', '');
 import { ProductsDataTable } from '../../components/ProductsDataTable';
 import { ProductImportModal } from '../../components/ProductImportModal';
+
+interface ProductImage {
+  id: number;
+  image_url: string;
+  is_primary: boolean;
+  sort_order: number;
+}
 
 interface Product {
   id: number;
@@ -31,6 +41,7 @@ interface Product {
   min_stock: number;
   status: 'active' | 'inactive';
   image?: string;
+  images?: ProductImage[];
   description?: string;
   compatible_models?: string;
   created_at?: string;
@@ -159,6 +170,7 @@ const loadProducts = async () => {
         is_active: apiProduct.is_active,
         brand_id: apiProduct.brand_id,
         brand_name: apiProduct.brand?.name,
+        images: (apiProduct.images ?? []) as ProductImage[],
       }));
 
       setProducts(mappedProducts);
@@ -208,27 +220,31 @@ const loadProducts = async () => {
 
   // Función para subir imágenes de producto
   const uploadProductImages = async (productId: number, images: File[]) => {
-    try {
-      const formData = new FormData();
-      images.forEach((image, index) => {
-        formData.append(`images[${index}]`, image);
-      });
+    const token = Cookies.get('auth_token');
+    const formData = new FormData();
+    images.forEach((image, index) => {
+      formData.append(`images[${index}]`, image);
+    });
 
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api'}/inventory/${productId}/images`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-        },
-        body: formData,
-      });
+    const response = await fetch(`${API_BASE}/inventory/${productId}/images`, {
+      method: 'POST',
+      headers: {
+        ...(token && { Authorization: `Bearer ${token}` }),
+      },
+      body: formData,
+    });
 
-      if (!response.ok) {
-        throw new Error('Error al subir imágenes');
-      }
-    } catch (err) {
-      console.error('Error uploading images:', err);
-      throw err;
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message || 'Error al subir imágenes');
     }
+    return response.json();
+  };
+
+  // Función para eliminar imagen de producto
+  const deleteProductImage = async (productId: number, imageId: number) => {
+    await productApi.deleteProductImage(productId, imageId);
+    await loadProducts();
   };
 
   // Función para crear nueva categoría
@@ -327,6 +343,9 @@ const loadProducts = async () => {
       const response = await productApi.updateProduct(id, updateData);
 
       if (response?.success) {
+        if (formData.images && formData.images.length > 0) {
+          await uploadProductImages(id, formData.images);
+        }
         setModalMode(null);
         await loadProducts();
       }
@@ -499,7 +518,7 @@ const loadProducts = async () => {
 
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="bg-white rounded-lg p-6 w-full max-w-7xl max-h-[90vh] overflow-y-auto">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-xl font-bold text-gray-900">
               {modalMode === 'create'
@@ -643,71 +662,112 @@ const loadProducts = async () => {
                 disabled={modalMode === 'view'} />
             </div>
 
-            {modalMode !== 'view' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Imágenes del Producto (Máximo 5)
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    multiple
-                    onChange={(e) => {
-                      const files = Array.from(e.target.files || []);
-                      if (files.length > 5) {
-                        alert('Máximo 5 imágenes por producto');
-                        return;
-                      }
-                      setFormData((prev) => ({ ...prev, images: files }));
-                    }}
-                    className="hidden"
-                    id="product-images"
-                  />
-                  <label htmlFor="product-images" className="cursor-pointer">
-                    <div className="flex flex-col items-center">
-                      <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      <p className="text-sm text-gray-600">
-                        Haz clic para seleccionar imágenes
-                      </p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        JPG, PNG, WEBP (máx. 5MB por imagen)
-                      </p>
-                    </div>
-                  </label>
-                </div>
-                {formData.images && formData.images.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm text-gray-600 mb-2">
-                      {formData.images.length} imagen(es) seleccionada(s)
-                    </p>
-                    <div className="grid grid-cols-3 gap-2">
-                      {formData.images.map((file, index) => (
-                        <div key={index} className="relative group">
-                          <img
-                            src={URL.createObjectURL(file)}
-                            alt={`Preview ${index + 1}`}
-                            className="w-full h-20 object-cover rounded border border-gray-300"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newImages = formData.images?.filter((_, i) => i !== index);
-                              setFormData((prev) => ({ ...prev, images: newImages }));
-                            }}
-                            className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
+            {/* Imágenes */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Imágenes del Producto
+              </label>
+
+              {/* Imágenes existentes (modo editar/ver) */}
+              {selectedProduct?.images && selectedProduct.images.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2">Imágenes guardadas:</p>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                    {selectedProduct.images
+                      .slice()
+                      .sort((a, b) => a.sort_order - b.sort_order)
+                      .map((img) => {
+                        const src = img.image_url.startsWith('http')
+                          ? img.image_url
+                          : `${API_BASE.replace('/api', '')}${img.image_url}`;
+                        return (
+                          <div key={img.id} className="relative group">
+                            <img
+                              src={src}
+                              alt="Imagen producto"
+                              className="w-full h-20 object-cover rounded-lg border border-gray-200"
+                            />
+                            {img.is_primary && (
+                              <span className="absolute bottom-0 left-0 right-0 text-center bg-blue-600 text-white text-[10px] py-0.5 rounded-b-lg">
+                                Principal
+                              </span>
+                            )}
+                            {modalMode !== 'view' && (
+                              <button
+                                type="button"
+                                onClick={() => deleteProductImage(selectedProduct.id, img.id)}
+                                className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="Eliminar imagen"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        );
+                      })}
                   </div>
-                )}
-              </div>
-            )}
+                </div>
+              )}
+
+              {/* Subir nuevas imágenes */}
+              {modalMode !== 'view' && (
+                <>
+                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors cursor-pointer">
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
+                      multiple
+                      onChange={(e) => {
+                        const files = Array.from(e.target.files || []);
+                        const existing = selectedProduct?.images?.length ?? 0;
+                        if (existing + files.length > 5) {
+                          alert(`Solo puedes tener 5 imágenes. Ya tienes ${existing}.`);
+                          return;
+                        }
+                        setFormData((prev) => ({ ...prev, images: files }));
+                      }}
+                      className="hidden"
+                      id="product-images"
+                    />
+                    <label htmlFor="product-images" className="cursor-pointer block">
+                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-1" />
+                      <p className="text-sm text-gray-600">Haz clic para agregar imágenes</p>
+                      <p className="text-xs text-gray-400 mt-0.5">JPG, PNG, WEBP · máx. 5MB · hasta 5 por producto</p>
+                    </label>
+                  </div>
+
+                  {/* Preview de nuevas imágenes seleccionadas */}
+                  {formData.images && formData.images.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-xs text-gray-500 mb-2">{formData.images.length} imagen(es) nuevas a subir:</p>
+                      <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
+                        {formData.images.map((file, index) => (
+                          <div key={index} className="relative group">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt={`Nueva ${index + 1}`}
+                              className="w-full h-20 object-cover rounded-lg border border-blue-200"
+                            />
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  images: prev.images?.filter((_, i) => i !== index),
+                                }))
+                              }
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
 
             {modalMode !== 'view' && (
               <div className="flex justify-end space-x-3 pt-4">

@@ -14,7 +14,6 @@ import ProductsContent from './sections/ProductsContent';
 import InventoryContent from './sections/InventoryContent';
 import WarehouseContent from './sections/WarehouseContent';
 import SalesContent from './sections/SalesContent';
-import DirectSalesContent from './sections/DirectSalesContent';
 import SalesHistoryContent from './sections/SalesHistoryContent';
 import SuppliersContent from './sections/SuppliersContent';
 import PurchaseOrdersContent from './sections/PurchaseOrdersContent';
@@ -72,8 +71,6 @@ export default function DashboardLayout({
         return <WarehouseContent />;
       case 'sales':
         return <SalesContent />;
-      case 'direct-sales':
-        return <DirectSalesContent />;
       case 'sales-history':
         return <SalesHistoryContent />;
       case 'suppliers':
@@ -102,26 +99,26 @@ export default function DashboardLayout({
   };
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex">
+    <div className="h-screen overflow-hidden bg-gray-50">
+      <div className="flex h-full">
         {/* Sidebar */}
-        <Sidebar 
-          isOpen={sidebarOpen} 
+        <Sidebar
+          isOpen={sidebarOpen}
           onToggle={() => setSidebarOpen(!sidebarOpen)}
           activeSection={activeSection}
           onSectionChange={setActiveSection}
         />
-        
+
         {/* Main Content */}
-        <div className="flex-1 lg:ml-0">
+        <div className="flex-1 flex flex-col overflow-hidden min-w-0">
           {/* Top Navigation */}
-          <Navbar 
+          <Navbar
             onToggleSidebar={() => setSidebarOpen(!sidebarOpen)}
             activeSection={activeSection}
           />
-          
-          {/* Page Content */}
-          <main className="p-6">
+
+          {/* Page Content — único área con scroll */}
+          <main className="flex-1 overflow-y-auto p-6">
             {renderContent()}
           </main>
         </div>

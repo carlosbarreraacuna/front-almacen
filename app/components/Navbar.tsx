@@ -39,11 +39,7 @@ const breadcrumbConfig: Record<string, BreadcrumbConfig> = {
     title: 'Gestión de Ventas',
     subtitle: 'Administra las ventas y transacciones'
   },
-  'direct-sales': {
-    title: 'Venta Directa',
-    subtitle: 'Realiza ventas directas en el punto de venta'
-  },
-  'sales-history': {
+'sales-history': {
     title: 'Historial de Ventas',
     subtitle: 'Consulta el historial completo de ventas'
   },

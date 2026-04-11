@@ -1,229 +1,233 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { 
-  Users, 
-  Package, 
-  ShoppingCart, 
-  TrendingUp,
-  DollarSign,
-  AlertTriangle,
-  Activity,
-  Calendar
-} from 'lucide-react';
+import { dashboardApi } from '../../services/api';
 
-interface StatCardProps {
-  title: string;
-  value: string;
-  icon: React.ReactNode;
-  change: string;
-  changeType: 'positive' | 'negative' | 'neutral';
+import DateRangePicker, { DateRange } from '../../components/dashboard/DateRangePicker';
+import SummaryCards from '../../components/dashboard/SummaryCards';
+import SalesTrendChart from '../../components/dashboard/SalesTrendChart';
+import PaymentMethodChart from '../../components/dashboard/PaymentMethodChart';
+import TopProductsTable from '../../components/dashboard/TopProductsTable';
+import TopCustomersTable from '../../components/dashboard/TopCustomersTable';
+import CategoryChart from '../../components/dashboard/CategoryChart';
+import HourlyChart from '../../components/dashboard/HourlyChart';
+import InventoryHealthCards from '../../components/dashboard/InventoryHealthCards';
+
+// ── Estado inicial del rango: este mes ──────────────────────────────────────
+function getThisMonth(): DateRange {
+  const now  = new Date();
+  const first = new Date(now.getFullYear(), now.getMonth(), 1);
+  const fmt   = (d: Date) => d.toISOString().slice(0, 10);
+  return { from: fmt(first), to: fmt(now), label: 'Este mes' };
 }
-
-const StatCard: React.FC<StatCardProps> = ({ title, value, icon, change, changeType }) => {
-  const changeColor = {
-    positive: 'text-green-600',
-    negative: 'text-red-600',
-    neutral: 'text-gray-600'
-  }[changeType];
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium text-gray-600">{title}</p>
-          <p className="text-2xl font-bold text-gray-900">{value}</p>
-          <p className={`text-sm ${changeColor}`}>{change}</p>
-        </div>
-        <div className="p-3 bg-blue-50 rounded-lg">
-          {icon}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-interface ActivityItemProps {
-  action: string;
-  user: string;
-  time: string;
-  type: 'sale' | 'inventory' | 'user' | 'system';
-}
-
-const ActivityItem: React.FC<ActivityItemProps> = ({ action, user, time, type }) => {
-  const typeColors = {
-    sale: 'bg-green-100 text-green-800',
-    inventory: 'bg-blue-100 text-blue-800',
-    user: 'bg-purple-100 text-purple-800',
-    system: 'bg-gray-100 text-gray-800'
-  };
-
-  return (
-    <div className="flex items-center space-x-3 py-3">
-      <div className={`px-2 py-1 rounded-full text-xs font-medium ${typeColors[type]}`}>
-        {type.toUpperCase()}
-      </div>
-      <div className="flex-1">
-        <p className="text-sm text-gray-900">{action}</p>
-        <p className="text-xs text-gray-500">por {user} • {time}</p>
-      </div>
-    </div>
-  );
-};
 
 export default function DashboardContent() {
   const { user } = useAuth();
 
-  const stats = [
-    {
-      title: 'Ventas Hoy',
-      value: '$12,450',
-      icon: <DollarSign className="w-6 h-6 text-blue-600" />,
-      change: '+12% vs ayer',
-      changeType: 'positive' as const
-    },
-    {
-      title: 'Productos',
-      value: '1,234',
-      icon: <Package className="w-6 h-6 text-blue-600" />,
-      change: '+5 nuevos',
-      changeType: 'positive' as const
-    },
-    {
-      title: 'Usuarios Activos',
-      value: '89',
-      icon: <Users className="w-6 h-6 text-blue-600" />,
-      change: '+3 esta semana',
-      changeType: 'positive' as const
-    },
-    {
-      title: 'Stock Bajo',
-      value: '23',
-      icon: <AlertTriangle className="w-6 h-6 text-blue-600" />,
-      change: 'Requiere atención',
-      changeType: 'negative' as const
-    }
-  ];
+  // ── Rango de fechas central ──────────────────────────────────────────────
+  const [range, setRange] = useState<DateRange>(getThisMonth);
 
-  const recentActivity = [
-    {
-      action: 'Nueva venta registrada #VT-001234',
-      user: 'María González',
-      time: 'hace 5 min',
-      type: 'sale' as const
-    },
-    {
-      action: 'Producto "Laptop HP" actualizado',
-      user: 'Carlos Ruiz',
-      time: 'hace 15 min',
-      type: 'inventory' as const
-    },
-    {
-      action: 'Nuevo usuario registrado',
-      user: 'Sistema',
-      time: 'hace 30 min',
-      type: 'user' as const
-    },
-    {
-      action: 'Backup automático completado',
-      user: 'Sistema',
-      time: 'hace 1 hora',
-      type: 'system' as const
-    }
-  ];
+  // ── Datos y estados de carga ─────────────────────────────────────────────
+  const [summary, setSummary]     = useState<any>(null);
+  const [trend, setTrend]         = useState<{ data: any[]; group_by: string }>({ data: [], group_by: 'day' });
+  const [payMethods, setPayMethods] = useState<any[]>([]);
+  const [topProducts, setTopProducts] = useState<any[]>([]);
+  const [topCustomers, setTopCustomers] = useState<any[]>([]);
+  const [categories, setCategories]   = useState<any[]>([]);
+  const [hourly, setHourly]           = useState<any[]>([]);
+  const [invHealth, setInvHealth]     = useState<any>(null);
+
+  const [loadingSummary,  setLoadingSummary]  = useState(true);
+  const [loadingTrend,    setLoadingTrend]    = useState(true);
+  const [loadingPay,      setLoadingPay]      = useState(true);
+  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [loadingCustomers,setLoadingCustomers]= useState(true);
+  const [loadingCat,      setLoadingCat]      = useState(true);
+  const [loadingHourly,   setLoadingHourly]   = useState(true);
+  const [loadingInv,      setLoadingInv]      = useState(true);
+
+  const [productsLimit,  setProductsLimit]  = useState(10);
+  const [customersLimit, setCustomersLimit] = useState(10);
+
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  // ── Fetch de todos los endpoints en paralelo ─────────────────────────────
+  const fetchAll = useCallback(async (r: DateRange, pLimit: number, cLimit: number) => {
+    const { from, to } = r;
+
+    // Summary
+    setLoadingSummary(true);
+    dashboardApi.getSummary(from, to)
+      .then(res => { if (res?.success) setSummary(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingSummary(false));
+
+    // Trend
+    setLoadingTrend(true);
+    dashboardApi.getSalesTrend(from, to)
+      .then(res => { if (res?.success) setTrend({ data: res.data, group_by: res.group_by }); })
+      .catch(() => {})
+      .finally(() => setLoadingTrend(false));
+
+    // Top products
+    setLoadingProducts(true);
+    dashboardApi.getTopProducts(from, to, pLimit)
+      .then(res => { if (res?.success) setTopProducts(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false));
+
+    // Top customers
+    setLoadingCustomers(true);
+    dashboardApi.getTopCustomers(from, to, cLimit)
+      .then(res => { if (res?.success) setTopCustomers(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingCustomers(false));
+
+    // By category
+    setLoadingCat(true);
+    dashboardApi.getByCategory(from, to)
+      .then(res => { if (res?.success) setCategories(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingCat(false));
+
+    // Hourly
+    setLoadingHourly(true);
+    dashboardApi.getHourly(from, to)
+      .then(res => { if (res?.success) setHourly(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingHourly(false));
+
+    // Inventory health
+    setLoadingInv(true);
+    dashboardApi.getInventoryHealth(from, to)
+      .then(res => { if (res?.success) setInvHealth(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingInv(false));
+
+    setLastUpdated(new Date());
+  }, []);
+
+  // Fetch de métodos de pago separado (usa /sales/stats existente)
+  const fetchPaymentMethods = useCallback(async (from: string, to: string) => {
+    setLoadingPay(true);
+    try {
+      const { saleApi } = await import('../../services/api');
+      const res = await saleApi.getStats(from, to);
+      if (res?.success) setPayMethods(res.data?.by_payment_method ?? []);
+    } catch {}
+    setLoadingPay(false);
+  }, []);
+
+  // Carga inicial y al cambiar el rango
+  useEffect(() => {
+    fetchAll(range, productsLimit, customersLimit);
+    fetchPaymentMethods(range.from, range.to);
+  }, [range, fetchAll, fetchPaymentMethods]);
+
+  // Al cambiar límites de tablas
+  useEffect(() => {
+    setLoadingProducts(true);
+    dashboardApi.getTopProducts(range.from, range.to, productsLimit)
+      .then(res => { if (res?.success) setTopProducts(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingProducts(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [productsLimit]);
+
+  useEffect(() => {
+    setLoadingCustomers(true);
+    dashboardApi.getTopCustomers(range.from, range.to, customersLimit)
+      .then(res => { if (res?.success) setTopCustomers(res.data); })
+      .catch(() => {})
+      .finally(() => setLoadingCustomers(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customersLimit]);
+
+  const handleRefresh = () => {
+    fetchAll(range, productsLimit, customersLimit);
+    fetchPaymentMethods(range.from, range.to);
+  };
+
+  const fmt = (d: Date) => d.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="space-y-6">
-      {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <StatCard key={index} {...stat} />
-        ))}
+
+      {/* ── Barra superior: bienvenida + date picker + refresh ── */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">
+            Bienvenido, {user?.name ?? 'Usuario'}
+          </h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Dashboard de métricas y análisis del negocio
+            {lastUpdated && (
+              <span className="ml-2 text-gray-400">· Actualizado a las {fmt(lastUpdated)}</span>
+            )}
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <DateRangePicker value={range} onChange={setRange} />
+          <button
+            onClick={handleRefresh}
+            className="p-2 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors border border-gray-300"
+            title="Actualizar datos"
+          >
+            <RefreshCw className="w-4 h-4" />
+          </button>
+        </div>
       </div>
 
-      {/* Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Activity */}
-        <div className="lg:col-span-2">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-            <div className="p-6 border-b border-gray-200">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold text-gray-900">
-                  Actividad Reciente
-                </h3>
-                <Activity className="w-5 h-5 text-gray-400" />
-              </div>
-            </div>
-            <div className="p-6">
-              <div className="space-y-1">
-                {recentActivity.map((activity, index) => (
-                  <ActivityItem key={index} {...activity} />
-                ))}
-              </div>
-              <div className="mt-4 pt-4 border-t border-gray-200">
-                <button className="text-sm text-blue-600 hover:text-blue-700 font-medium">
-                  Ver toda la actividad →
-                </button>
-              </div>
-            </div>
+      {/* ── Cards de resumen (KPIs) ── */}
+      <SummaryCards data={summary} loading={loadingSummary} />
+
+      {/* ── Gráfica de tendencia + Métodos de pago ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="xl:col-span-2">
+          <SalesTrendChart data={trend.data} loading={loadingTrend} groupBy={trend.group_by} />
+        </div>
+        <div>
+          <PaymentMethodChart data={payMethods} loading={loadingPay} />
+        </div>
+      </div>
+
+      {/* ── Layout principal: contenido izquierdo + inventario derecho ── */}
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6">
+
+        {/* Columna principal (3/4) */}
+        <div className="xl:col-span-3 space-y-6">
+
+          {/* Top Productos */}
+          <TopProductsTable
+            data={topProducts}
+            loading={loadingProducts}
+            limit={productsLimit}
+            onLimitChange={setProductsLimit}
+          />
+
+          {/* Top Clientes */}
+          <TopCustomersTable
+            data={topCustomers}
+            loading={loadingCustomers}
+            limit={customersLimit}
+            onLimitChange={setCustomersLimit}
+          />
+
+          {/* Gráficas secundarias */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <CategoryChart data={categories} loading={loadingCat} />
+            <HourlyChart   data={hourly}     loading={loadingHourly} />
           </div>
         </div>
 
-        {/* Quick Actions */}
-        <div className="space-y-6">
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Acciones Rápidas
-            </h3>
-            <div className="space-y-3">
-              <button className="w-full flex items-center space-x-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <ShoppingCart className="w-5 h-5 text-blue-600" />
-                <span className="text-sm font-medium">Nueva Venta</span>
-              </button>
-              <button className="w-full flex items-center space-x-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <Package className="w-5 h-5 text-green-600" />
-                <span className="text-sm font-medium">Agregar Producto</span>
-              </button>
-              <button className="w-full flex items-center space-x-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <Users className="w-5 h-5 text-purple-600" />
-                <span className="text-sm font-medium">Nuevo Usuario</span>
-              </button>
-              <button className="w-full flex items-center space-x-3 p-3 text-left rounded-lg border border-gray-200 hover:bg-gray-50 transition-colors">
-                <TrendingUp className="w-5 h-5 text-orange-600" />
-                <span className="text-sm font-medium">Ver Reportes</span>
-              </button>
-            </div>
-          </div>
-
-          {/* System Status */}
-          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-              Estado del Sistema
-            </h3>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Base de Datos</span>
-                <span className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-green-600">Activa</span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">API</span>
-                <span className="flex items-center space-x-1">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-sm text-green-600">Operativa</span>
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-gray-600">Último Backup</span>
-                <span className="text-sm text-gray-600">hace 2 horas</span>
-              </div>
-            </div>
-          </div>
+        {/* Columna lateral: Inventario (1/4) */}
+        <div className="xl:col-span-1">
+          <InventoryHealthCards data={invHealth} loading={loadingInv} />
         </div>
       </div>
+
     </div>
   );
 }
