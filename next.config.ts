@@ -2,16 +2,33 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   eslint: {
-    // Warning: This allows production builds to successfully complete even if
-    // your project has ESLint errors.
     ignoreDuringBuilds: true,
   },
   typescript: {
-    // !! WARN !!
-    // Dangerously allow production builds to successfully complete even if
-    // your project has type errors.
-    // !! WARN !!
     ignoreBuildErrors: true,
+  },
+  images: {
+    remotePatterns: [
+      // Producción
+      {
+        protocol: 'https',
+        hostname: 'api.motospa.com.co',
+        pathname: '/storage/**',
+      },
+      // Desarrollo local
+      {
+        protocol: 'http',
+        hostname: '127.0.0.1',
+        port: '8000',
+        pathname: '/storage/**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '8000',
+        pathname: '/storage/**',
+      },
+    ],
   },
 };
 
