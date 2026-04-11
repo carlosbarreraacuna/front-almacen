@@ -20,7 +20,7 @@ import {
 import Cookies from 'js-cookie';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
-const STORAGE_BASE = API_BASE.replace('/api', '');
+const STORAGE_BASE = API_BASE.replace(/\/api\/?$/, '');
 import { ProductsDataTable } from '../../components/ProductsDataTable';
 import { ProductImportModal } from '../../components/ProductImportModal';
 
@@ -679,7 +679,7 @@ const loadProducts = async () => {
                       .map((img) => {
                         const src = img.image_url.startsWith('http')
                           ? img.image_url
-                          : `${API_BASE.replace('/api', '')}${img.image_url}`;
+                          : `${STORAGE_BASE}${img.image_url}`;
                         return (
                           <div key={img.id} className="relative group">
                             <img
