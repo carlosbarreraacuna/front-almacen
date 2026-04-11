@@ -59,10 +59,6 @@ const breadcrumbConfig: Record<string, BreadcrumbConfig> = {
     title: 'Reportes y Análisis',
     subtitle: 'Visualiza estadísticas y genera reportes'
   },
-  'analytics': {
-    title: 'Análisis Avanzado',
-    subtitle: 'Análisis detallado de métricas del negocio'
-  },
   'settings': {
     title: 'Configuración',
     subtitle: 'Configura los parámetros del sistema'

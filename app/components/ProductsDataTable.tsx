@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import {
   ColumnDef,
   ColumnFiltersState,
+  FilterFn,
   SortingState,
   VisibilityState,
   flexRender,
@@ -53,12 +54,14 @@ interface Product {
   status: 'active' | 'inactive';
   image?: string;
   description?: string;
+  compatible_models?: string;
   created_at?: string;
   updated_at?: string;
   cost_price?: number;
   unit_of_measure?: string;
   is_active?: boolean;
   category_id?: number;
+  brand_name?: string;
 }
 
 interface ProductsDataTableProps {
@@ -134,6 +137,21 @@ function ColumnFilter({
     </div>
   );
 }
+
+// Busca en todos los valores de la fila (string, number, etc.)
+const globalFilterFn: FilterFn<Product> = (row, _columnId, filterValue) => {
+  const q = String(filterValue).toLowerCase();
+  return [
+    row.original.sku,
+    row.original.name,
+    row.original.category,
+    String(row.original.price),
+    String(row.original.stock),
+    row.original.compatible_models ?? '',
+    row.original.brand_name ?? '',
+    row.original.unit_of_measure ?? '',
+  ].some((v) => String(v).toLowerCase().includes(q));
+};
 
 export function ProductsDataTable({
   data,
@@ -428,6 +446,8 @@ export function ProductsDataTable({
     },
     {
       accessorKey: 'stock',
+      filterFn: (row, _columnId, filterValue) =>
+        String(row.original.stock) === String(filterValue),
       header: ({ column }) => {
         const isActive = activeColumnFilter?.columnId === 'stock';
         return (
@@ -445,7 +465,7 @@ export function ProductsDataTable({
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
                     <Input
-                      placeholder="Buscar..."
+                      placeholder="Buscar por cantidad..."
                       value={(column.getFilterValue() as string) ?? ''}
                       onChange={(e) => column.setFilterValue(e.target.value)}
                       className="h-8 text-xs pl-7"
@@ -455,10 +475,10 @@ export function ProductsDataTable({
                 </div>
                 <div className="max-h-64 overflow-y-auto p-2">
                   {(() => {
+                    const filterValue = (column.getFilterValue() as string) ?? '';
                     const uniqueValues = Array.from(
                       new Set(data.map((item) => item.stock.toString()))
                     ).filter(Boolean).sort((a, b) => parseInt(a) - parseInt(b));
-                    const filterValue = (column.getFilterValue() as string) ?? '';
                     const filteredValues = filterValue
                       ? uniqueValues.filter((val) => val.includes(filterValue))
                       : uniqueValues;
@@ -507,16 +527,114 @@ export function ProductsDataTable({
       },
     },
     {
-      accessorKey: 'status',
+      accessorKey: 'compatible_models',
+      filterFn: (row, _columnId, filterValue) =>
+        (row.original.compatible_models ?? '').toLowerCase().includes(String(filterValue).toLowerCase()),
       header: ({ column }) => {
-        const isActive = activeColumnFilter?.columnId === 'status';
+        const isActive = activeColumnFilter?.columnId === 'compatible_models';
         return (
           <div className="relative">
             <button
-              onClick={() => setActiveColumnFilter(isActive ? null : { columnId: 'status', columnName: 'ESTADO' })}
+              onClick={() => setActiveColumnFilter(isActive ? null : { columnId: 'compatible_models', columnName: 'MODELOS COMPATIBLES' })}
               className="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900"
             >
-              <span>ESTADO</span>
+              <span>MODELOS COMPATIBLES</span>
+              <Search className="h-3 w-3" />
+            </button>
+            {isActive && (
+              <div className="absolute top-full left-0 mt-1 w-72 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                <div className="p-3 border-b border-gray-200">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
+                    <Input
+                      placeholder="Buscar modelo..."
+                      value={(column.getFilterValue() as string) ?? ''}
+                      onChange={(e) => column.setFilterValue(e.target.value)}
+                      className="h-8 text-xs pl-7"
+                      autoFocus
+                    />
+                    {column.getFilterValue() && (
+                      <button
+                        onClick={() => column.setFilterValue('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="max-h-64 overflow-y-auto p-2">
+                  {(() => {
+                    const filterValue = (column.getFilterValue() as string) ?? '';
+                    const allModels = Array.from(
+                      new Set(
+                        data
+                          .flatMap((item) =>
+                            (item.compatible_models ?? '')
+                              .split(/[,\n]/)
+                              .map((m) => m.trim())
+                              .filter(Boolean)
+                          )
+                      )
+                    ).sort();
+                    const filtered = filterValue
+                      ? allModels.filter((m) => m.toLowerCase().includes(filterValue.toLowerCase()))
+                      : allModels;
+                    return filtered.length > 0 ? (
+                      <div className="space-y-1">
+                        {filtered.map((value, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              column.setFilterValue(value);
+                              setActiveColumnFilter(null);
+                            }}
+                            className="w-full text-left px-2 py-1.5 hover:bg-gray-50 rounded text-xs text-gray-700 truncate"
+                          >
+                            {value}
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="p-3 text-center text-xs text-gray-500">No se encontraron modelos</div>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      },
+      cell: ({ row }) => {
+        const models = row.original.compatible_models;
+        if (!models) return <span className="text-gray-300 text-xs">—</span>;
+        return (
+          <div className="relative group max-w-[220px]">
+            <span className="text-xs text-gray-600 line-clamp-2 cursor-pointer underline decoration-dotted decoration-gray-400 hover:text-blue-600">
+              {models}
+            </span>
+            <div className="absolute z-50 hidden group-hover:block bottom-full left-0 mb-2 w-72 bg-gray-900 text-white text-xs rounded-lg p-3 shadow-xl pointer-events-none">
+              <p className="font-semibold text-gray-300 mb-1 uppercase tracking-wide text-[10px]">Modelos Compatibles</p>
+              <p className="leading-relaxed whitespace-pre-wrap">{models}</p>
+              <div className="absolute top-full left-4 w-0 h-0 border-l-4 border-r-4 border-t-4 border-l-transparent border-r-transparent border-t-gray-900" />
+            </div>
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: 'brand_name',
+      filterFn: (row, _columnId, filterValue) =>
+        (row.original.brand_name ?? '').toLowerCase().includes(String(filterValue).toLowerCase()),
+      header: ({ column }) => {
+        const isActive = activeColumnFilter?.columnId === 'brand_name';
+        return (
+          <div className="relative">
+            <button
+              onClick={() => setActiveColumnFilter(isActive ? null : { columnId: 'brand_name', columnName: 'MARCA' })}
+              className="flex items-center space-x-1 font-semibold text-gray-700 hover:text-gray-900"
+            >
+              <span>MARCA</span>
               <Search className="h-3 w-3" />
             </button>
             {isActive && (
@@ -525,7 +643,7 @@ export function ProductsDataTable({
                   <div className="relative">
                     <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3 w-3 text-gray-400" />
                     <Input
-                      placeholder="Buscar..."
+                      placeholder="Buscar marca..."
                       value={(column.getFilterValue() as string) ?? ''}
                       onChange={(e) => column.setFilterValue(e.target.value)}
                       className="h-8 text-xs pl-7"
@@ -536,7 +654,7 @@ export function ProductsDataTable({
                 <div className="max-h-64 overflow-y-auto p-2">
                   {(() => {
                     const uniqueValues = Array.from(
-                      new Set(data.map((item) => item.status))
+                      new Set(data.map((item) => item.brand_name ?? ''))
                     ).filter(Boolean).sort();
                     const filterValue = (column.getFilterValue() as string) ?? '';
                     const filteredValues = filterValue
@@ -553,12 +671,12 @@ export function ProductsDataTable({
                             }}
                             className="w-full text-left px-2 py-1.5 hover:bg-gray-50 rounded text-xs text-gray-700"
                           >
-                            {value === 'active' ? 'Activo' : 'Inactivo'}
+                            {value}
                           </button>
                         ))}
                       </div>
                     ) : (
-                      <div className="p-3 text-center text-xs text-gray-500">No se encontraron valores</div>
+                      <div className="p-3 text-center text-xs text-gray-500">No se encontraron marcas</div>
                     );
                   })()}
                 </div>
@@ -568,18 +686,10 @@ export function ProductsDataTable({
         );
       },
       cell: ({ row }) => {
-        const status = row.getValue('status') as string;
-        return (
-          <span
-            className={`px-2 py-1 rounded-full text-xs font-medium ${
-              status === 'active'
-                ? 'bg-green-100 text-green-800'
-                : 'bg-gray-100 text-gray-800'
-            }`}
-          >
-            {status === 'active' ? 'Activo' : 'Inactivo'}
-          </span>
-        );
+        const brand = row.original.brand_name;
+        return brand
+          ? <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-50 text-blue-700">{brand}</span>
+          : <span className="text-gray-300 text-xs">—</span>;
       },
     },
     {
@@ -619,6 +729,7 @@ export function ProductsDataTable({
   const table = useReactTable({
     data,
     columns,
+    globalFilterFn,
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
     getCoreRowModel: getCoreRowModel(),
@@ -655,7 +766,8 @@ export function ProductsDataTable({
         'Stock':             p.stock,
         'Stock Mínimo':      p.min_stock,
         'Unidad de Medida':  p.unit_of_measure ?? '',
-        'Estado':            p.status === 'active' ? 'Activo' : 'Inactivo',
+        'Marca':             p.brand_name ?? '',
+        'Modelos Compatibles': p.compatible_models ?? '',
         'Descripción':       p.description ?? '',
         'Fecha Creación':    p.created_at ? new Date(p.created_at).toLocaleDateString('es-CO') : '',
       };

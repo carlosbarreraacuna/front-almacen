@@ -21,6 +21,7 @@ interface Product {
   stock: number;
   code: string;
   category: string;
+  brand_name?: string;
   compatible_models?: string;
   image_url?: string;
   sellByWeight?: boolean;
@@ -117,6 +118,7 @@ export default function SalesContent() {
             stock: parseFloat(apiProduct.stock_quantity),
             code: apiProduct.sku,
             category: apiProduct.category?.name || '',
+            brand_name: apiProduct.brand?.name || '',
             compatible_models: apiProduct.compatible_models || '',
             image_url: apiProduct.image_url || '',
             sellByWeight: apiProduct.sell_by_weight || false,
@@ -692,6 +694,7 @@ export default function SalesContent() {
                       p.name.toLowerCase().includes(q) ||
                       p.code.toLowerCase().includes(q) ||
                       p.category.toLowerCase().includes(q) ||
+                      (p.brand_name || '').toLowerCase().includes(q) ||
                       (p.compatible_models || '').toLowerCase().includes(q) ||
                       String(p.price).includes(q) ||
                       String(p.stock).includes(q)
@@ -714,6 +717,7 @@ export default function SalesContent() {
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-28">SKU</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase">Producto</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-32">Categoría</th>
+                        <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-28">Marca</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-28">Precio</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-20">Stock</th>
                         <th className="px-3 py-2.5 text-left text-xs font-semibold text-gray-500 uppercase w-96">Modelos Compatibles</th>
@@ -734,6 +738,13 @@ export default function SalesContent() {
                           {/* Categoría */}
                           <td className="px-3 py-2.5">
                             <span className="text-xs text-gray-500 uppercase leading-tight">{product.category}</span>
+                          </td>
+                          {/* Marca */}
+                          <td className="px-3 py-2.5">
+                            {product.brand_name
+                              ? <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700">{product.brand_name}</span>
+                              : <span className="text-xs text-gray-300">—</span>
+                            }
                           </td>
                           {/* Precio */}
                           <td className="px-3 py-2.5">

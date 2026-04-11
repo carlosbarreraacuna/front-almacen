@@ -152,30 +152,9 @@ export default function CouponsContent() {
 
   return (
     <div>
-      {/* Header */}
-      <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-            <Ticket className="w-7 h-7 text-blue-600" />
-            Gestión de Cupones
-          </h1>
-          <p className="text-gray-600 mt-1">Crea y administra códigos promocionales para la tienda</p>
-        </div>
-        <button
-          onClick={() => {
-            resetForm();
-            setShowModal(true);
-          }}
-          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm"
-        >
-          <Plus className="w-5 h-5" />
-          Nuevo Cupón
-        </button>
-      </div>
-
       {/* Search */}
-      <div className="mb-6">
-        <div className="relative">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
           <input
             type="text"
@@ -185,6 +164,16 @@ export default function CouponsContent() {
             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
         </div>
+        <button
+          onClick={() => {
+            resetForm();
+            setShowModal(true);
+          }}
+          className="bg-blue-600 text-white px-4 py-2 rounded-lg flex items-center gap-2 hover:bg-blue-700 transition-colors shadow-sm whitespace-nowrap"
+        >
+          <Plus className="w-5 h-5" />
+          Nuevo Cupón
+        </button>
       </div>
 
       {/* Stats */}

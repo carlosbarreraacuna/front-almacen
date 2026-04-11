@@ -11,11 +11,9 @@ import {
   ShoppingCart,
   BarChart3,
   Settings,
-  LogOut,
   Menu,
   X,
   Warehouse,
-  TrendingUp,
   FileText,
   UserCheck,
   Truck,
@@ -184,13 +182,6 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           permission: 'reports.view',
           description: 'Informes y estadísticas'
         },
-        {
-          id: 'analytics',
-          name: 'Análisis',
-          icon: TrendingUp,
-          permission: 'analytics.view',
-          description: 'Análisis avanzado'
-        }
       ]
     },
     {
@@ -312,7 +303,7 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
               alt="Moto Spa"
               className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover"
             />
-            <span className="text-lg sm:text-xl font-bold text-gray-900 truncate">MOTO SPA</span>
+            <span className="text-lg sm:text-xl font-bold text-gray-900 truncate ml-2.5">MOTO SPA</span>
           </div>
           <button
             onClick={onToggle}
@@ -431,17 +422,6 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           })}
         </nav>
 
-        {/* Logout Button */}
-        <div className="p-3 sm:p-4 border-t border-gray-200">
-          <button
-            onClick={logout}
-            className="flex items-center space-x-2 sm:space-x-3 w-full px-2 sm:px-3 py-2 text-xs sm:text-sm font-medium text-red-600 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-inset"
-            aria-label="Cerrar sesión"
-          >
-            <LogOut className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-            <span className="truncate">Cerrar Sesión</span>
-          </button>
-        </div>
       </div>
     </>
   );
