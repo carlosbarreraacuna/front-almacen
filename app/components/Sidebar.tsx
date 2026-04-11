@@ -107,13 +107,6 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
       permission: 'categories.view',
       description: 'Gestión de categorías'
     },
-    {
-      id: 'coupons',
-      name: 'Cupones',
-      icon: Ticket,
-      permission: 'sales.view',
-      description: 'Gestión de cupones promocionales'
-    }
   ]
 },
     {
@@ -134,6 +127,13 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           icon: FileText,
           permission: 'sales.view',
           description: 'Registro de transacciones'
+        },
+        {
+          id: 'coupons',
+          name: 'Cupones',
+          icon: Ticket,
+          permission: 'sales.view',
+          description: 'Gestión de cupones promocionales'
         }
       ]
     },
@@ -307,10 +307,12 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
         {/* Header */}
         <div className="flex items-center justify-between p-3 sm:p-4 border-b border-gray-200">
           <div className="flex items-center space-x-2">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 bg-blue-500 rounded-lg flex items-center justify-center">
-              <Package className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
-            <span className="text-lg sm:text-xl font-bold text-gray-900 truncate">POS Almacén</span>
+            <img
+              src="/logoalmacen.jpeg"
+              alt="Moto Spa"
+              className="w-8 h-8 sm:w-10 sm:h-10 rounded-lg object-cover"
+            />
+            <span className="text-lg sm:text-xl font-bold text-gray-900 truncate">MOTO SPA</span>
           </div>
           <button
             onClick={onToggle}

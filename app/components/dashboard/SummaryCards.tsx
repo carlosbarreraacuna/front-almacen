@@ -24,7 +24,7 @@ interface SummaryCardsProps {
 }
 
 const formatCOP = (n: number) =>
-  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(n);
+  new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0, maximumFractionDigits: 0 }).format(n);
 
 function ChangeChip({ change }: { change: number }) {
   const abs = Math.abs(change);

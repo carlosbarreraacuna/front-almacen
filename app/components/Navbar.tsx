@@ -75,6 +75,10 @@ const breadcrumbConfig: Record<string, BreadcrumbConfig> = {
     title: 'Gestión de Marcas',
     subtitle: 'Administra las marcas de productos'
   },
+  'coupons': {
+    title: 'Cupones Promocionales',
+    subtitle: 'Crea y administra cupones de descuento'
+  },
   'roles': {
     title: 'Gestión de Roles',
     subtitle: 'Administra roles y permisos del sistema'

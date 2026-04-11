@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   ShoppingCart, Plus, Search, User, CreditCard,
   Trash2, Edit, Check, X, Calculator, Receipt,
-  Package, Users, TrendingUp, Clock, QrCode, Printer
+  Package, Users, TrendingUp, Clock, QrCode, Printer, AlertCircle
 } from 'lucide-react';
 import SmartAutocomplete from '../../components/SmartAutocomplete';
 import { useSmartAutocomplete } from '../../hooks/useSmartAutocomplete';
@@ -452,10 +452,12 @@ export default function SalesContent() {
         setCouponDiscount(response.data.discount);
         setCouponError('');
       } else {
-        setCouponError(response?.message || 'Cupón inválido o expirado');
+        const msg = response?.errors?.[0] || response?.message || 'Cupón inválido o expirado';
+        setCouponError(msg);
       }
     } catch (err: any) {
-      setCouponError(err?.message || 'Cupón inválido o expirado');
+      const msg = err?.response?.data?.errors?.[0] || err?.message || 'Cupón inválido o expirado';
+      setCouponError(msg);
     } finally {
       setCouponLoading(false);
     }
@@ -982,7 +984,13 @@ export default function SalesContent() {
                       </button>
                     </div>
                     {couponError && (
-                      <p className="text-xs text-red-600">{couponError}</p>
+                      <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                        <AlertCircle className="w-3.5 h-3.5 text-red-500 flex-shrink-0 mt-0.5" />
+                        <p className="text-xs text-red-700 font-medium leading-snug">{couponError}</p>
+                        <button onClick={() => setCouponError('')} className="ml-auto text-red-400 hover:text-red-600 flex-shrink-0">
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ) : (
@@ -1232,9 +1240,11 @@ export default function SalesContent() {
             {/* Contenido del recibo */}
             <div id="receipt-content" className="p-5 font-mono text-xs space-y-3">
               {/* Encabezado */}
-              <div className="text-center space-y-0.5">
-                <p className="text-base font-bold uppercase tracking-wide">Punto de Venta</p>
-                <p className="text-gray-500">Colombia</p>
+              <div className="text-center space-y-1">
+                <div className="flex justify-center mb-1">
+                  <img src="/logoalmacen.jpeg" alt="Moto Spa" className="w-16 h-16 rounded-full object-cover" />
+                </div>
+                <p className="text-base font-bold uppercase tracking-wide">Almacén y Taller Moto Spa</p>
                 <div className="border-t border-dashed border-gray-400 my-2" />
                 <p className="font-bold text-sm">N° {receiptData.saleNumber}</p>
                 <p className="text-gray-500">{receiptData.date}</p>
@@ -1252,8 +1262,7 @@ export default function SalesContent() {
               {/* Items */}
               <div className="border-t border-dashed border-gray-300 pt-2 space-y-1.5">
                 <div className="flex justify-between font-bold border-b border-gray-200 pb-1">
-                  <span className="w-32 truncate">Producto</span>
-                  <span>Cant</span>
+                  <span className="flex-1">Producto</span>
                   <span>Total</span>
                 </div>
                 {receiptData.items.map((item: any, i: number) => {

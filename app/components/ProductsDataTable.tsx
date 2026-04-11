@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
+import * as XLSX from 'xlsx';
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -639,6 +640,42 @@ export function ProductsDataTable({
     },
   });
 
+  const handleExport = () => {
+    // Exporta los datos actualmente filtrados/visibles en la tabla
+    const rows = table.getFilteredRowModel().rows;
+
+    const exportData = rows.map((row) => {
+      const p = row.original;
+      return {
+        'SKU':               p.sku,
+        'Nombre':            p.name,
+        'Categoría':         p.category,
+        'Precio Venta':      p.price,
+        'Costo':             p.cost_price ?? '',
+        'Stock':             p.stock,
+        'Stock Mínimo':      p.min_stock,
+        'Unidad de Medida':  p.unit_of_measure ?? '',
+        'Estado':            p.status === 'active' ? 'Activo' : 'Inactivo',
+        'Descripción':       p.description ?? '',
+        'Fecha Creación':    p.created_at ? new Date(p.created_at).toLocaleDateString('es-CO') : '',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+
+    // Ajustar ancho de columnas automáticamente
+    const colWidths = Object.keys(exportData[0] ?? {}).map((key) => ({
+      wch: Math.max(key.length, ...exportData.map((row) => String((row as any)[key] ?? '').length), 10),
+    }));
+    worksheet['!cols'] = colWidths;
+
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');
+
+    const filename = `productos_${new Date().toISOString().slice(0, 10)}.xlsx`;
+    XLSX.writeFile(workbook, filename);
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -671,9 +708,14 @@ export function ProductsDataTable({
           >
             <span className="mr-2">Restablecer</span>
           </Button>
-          <Button variant="outline" size="sm">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExport}
+            className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200"
+          >
             <FileDown className="h-4 w-4 mr-2" />
-            <span>Exportar</span>
+            <span>Exportar Excel</span>
           </Button>
           {onImport && (
             <Button 
