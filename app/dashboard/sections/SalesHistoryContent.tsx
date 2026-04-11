@@ -31,6 +31,7 @@ interface Sale {
   payment_method: string;
   payment_status: string;
   status: string;
+  sale_channel?: 'pos' | 'web';
   notes?: string;
   sale_items?: SaleItem[];
 }
@@ -75,6 +76,21 @@ const PaymentBadge = ({ method }: { method: string }) => {
   return (
     <span className={`inline-flex px-2 py-0.5 text-xs font-medium rounded-full ${colors[method] ?? 'bg-gray-100 text-gray-600'}`}>
       {PAYMENT_METHODS[method] ?? method}
+    </span>
+  );
+};
+
+const ChannelBadge = ({ channel }: { channel?: 'pos' | 'web' }) => {
+  if (channel === 'web') {
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-indigo-100 text-indigo-700">
+        🌐 Web
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-semibold rounded-full bg-gray-100 text-gray-600">
+      🏪 Tienda
     </span>
   );
 };
@@ -481,7 +497,10 @@ export default function SalesHistoryContent() {
                   {pagedSales.map(sale => (
                     <tr key={sale.id} className="hover:bg-gray-50 transition-colors">
                       <td className="px-4 py-3">
-                        <span className="font-mono text-sm text-blue-600 font-medium">{sale.sale_number}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-sm text-blue-600 font-medium">{sale.sale_number}</span>
+                          <ChannelBadge channel={sale.sale_channel} />
+                        </div>
                         {sale.user && <p className="text-xs text-gray-400 mt-0.5">Por: {sale.user.name}</p>}
                       </td>
                       <td className="px-4 py-3 text-sm text-gray-600 whitespace-nowrap">
@@ -584,6 +603,7 @@ export default function SalesHistoryContent() {
               <div className="flex flex-wrap gap-3">
                 <StatusBadge status={detailSale.status} />
                 <PaymentBadge method={detailSale.payment_method} />
+                <ChannelBadge channel={detailSale.sale_channel} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="p-3 bg-gray-50 rounded-lg">
