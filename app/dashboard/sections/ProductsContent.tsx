@@ -37,6 +37,7 @@ interface Product {
   sku: string;
   category: string;
   price: number;
+  discount_percentage?: number;
   stock: number;
   min_stock: number;
   status: 'active' | 'inactive';
@@ -60,6 +61,7 @@ interface ProductFormData {
   category: string;
   brand_id: string;
   price: number;
+  discount_percentage: number;
   stock: number;
   min_stock: number;
   unit_of_measure: string;
@@ -157,6 +159,7 @@ const loadProducts = async () => {
         category: apiProduct.category?.name || 'Sin categoría',
         category_id: apiProduct.category_id ?? apiProduct.category?.id,
         price: toNumber(apiProduct.unit_price),
+        discount_percentage: toNumber(apiProduct.discount_percentage),
         stock: toNumber(apiProduct.stock_quantity),
         min_stock: toNumber(apiProduct.min_stock_level),
         status: apiProduct.is_active ? 'active' : 'inactive',
@@ -292,6 +295,7 @@ const loadProducts = async () => {
         sku: formData.sku,
         unit_price: formData.price,
         cost_price: formData.price,
+        discount_percentage: formData.discount_percentage || 0,
         stock_quantity: formData.stock,
         min_stock_level: formData.min_stock,
         unit_of_measure: formData.unit_of_measure || 'unidad',
@@ -330,6 +334,7 @@ const loadProducts = async () => {
         sku: formData.sku,
         unit_price: formData.price,
         cost_price: formData.price,
+        discount_percentage: formData.discount_percentage || 0,
         stock_quantity: formData.stock,
         min_stock_level: formData.min_stock,
         unit_of_measure: formData.unit_of_measure || 'unidad',
@@ -433,6 +438,7 @@ const loadProducts = async () => {
       category: '',
       brand_id: '',
       price: 0,
+      discount_percentage: 0,
       stock: 0,
       min_stock: 0,
       unit_of_measure: '',
@@ -452,6 +458,7 @@ const loadProducts = async () => {
           category: selectedProduct.category_id?.toString() || '',
           brand_id: selectedProduct.brand_id?.toString() || '',
           price: selectedProduct.price,
+          discount_percentage: selectedProduct.discount_percentage ?? 0,
           stock: selectedProduct.stock,
           min_stock: selectedProduct.min_stock,
           unit_of_measure: selectedProduct.unit_of_measure || '',
@@ -592,8 +599,8 @@ const loadProducts = async () => {
               </div>
             </div>
 
-            {/* Precio + Presentación */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Precio + Descuento + Presentación */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Precio *</label>
                 <input type="number" step="0.01" min="0" value={formData.price}
@@ -601,6 +608,20 @@ const loadProducts = async () => {
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.price ? 'border-red-500' : 'border-gray-300'}`}
                   disabled={modalMode === 'view'} />
                 {errors.price && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.price}</p>}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
+                <input type="number" step="1" min="0" max="100" value={formData.discount_percentage}
+                  onChange={(e) => handleInputChange('discount_percentage', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  disabled={modalMode === 'view'} />
+                {formData.discount_percentage > 0 && (
+                  <p className="text-xs text-green-600 mt-1">
+                    Precio oferta: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(
+                      Math.round(formData.price * (1 - formData.discount_percentage / 100))
+                    )}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Presentación</label>

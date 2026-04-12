@@ -52,6 +52,7 @@ export interface ApiProduct {
   image_url?: string;
   images?: { id: number; image_url: string; is_primary: boolean; sort_order: number }[];
   is_active: boolean;
+  discount_percentage?: number;
   tax_rate?: number;
   supplier_id?: number;
   location_id?: number;
@@ -99,6 +100,7 @@ export interface CreateProductData {
   tax_rate?: number;
   supplier_id?: number;
   location_id?: number;
+  discount_percentage?: number;
 }
 
 export interface UpdateProductData extends Partial<CreateProductData> {}

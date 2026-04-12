@@ -28,7 +28,8 @@ import {
   Users2,
   Ticket,
   PieChart,
-  Cog
+  Cog,
+  Tag,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -132,6 +133,13 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           icon: Ticket,
           permission: 'sales.view',
           description: 'Gestión de cupones promocionales'
+        },
+        {
+          id: 'ofertas',
+          name: 'Ofertas',
+          icon: Tag,
+          permission: 'products.view',
+          description: 'Descuentos y precios de oferta'
         }
       ]
     },

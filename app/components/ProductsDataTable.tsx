@@ -49,6 +49,7 @@ interface Product {
   sku: string;
   category: string;
   price: number;
+  discount_percentage?: number;
   stock: number;
   min_stock: number;
   status: 'active' | 'inactive';
@@ -437,11 +438,19 @@ export function ProductsDataTable({
       },
       cell: ({ row }) => {
         const price = parseFloat(row.getValue('price'));
-        const formatted = new Intl.NumberFormat('es-CO', {
-          style: 'currency',
-          currency: 'COP',
-        }).format(price);
-        return <div className="font-medium text-gray-900">{formatted}</div>;
+        const discount = row.original.discount_percentage ?? 0;
+        const fmt = (v: number) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(v);
+        if (discount > 0) {
+          const offerPrice = Math.round(price * (1 - discount / 100));
+          return (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-bold text-gray-900">{fmt(offerPrice)}</span>
+              <span className="text-xs text-gray-400 line-through">{fmt(price)}</span>
+              <span className="text-xs font-bold text-red-600 bg-red-50 px-1 py-0.5 rounded">-{discount}%</span>
+            </div>
+          );
+        }
+        return <div className="font-medium text-gray-900">{fmt(price)}</div>;
       },
     },
     {
