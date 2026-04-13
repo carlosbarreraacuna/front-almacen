@@ -26,6 +26,8 @@ import BrandsContent from './sections/BrandsContent';
 import CategoryContent from './sections/CategoryContent';
 import CouponsContent from './sections/CouponsContent';
 import OfertasContent from './sections/OfertasContent';
+import NewsletterContent from './sections/NewsletterContent';
+import OnlineOrdersContent from './sections/OnlineOrdersContent';
 
 export default function DashboardLayout({
   children,
@@ -96,6 +98,10 @@ export default function DashboardLayout({
         return <CouponsContent />;
       case 'ofertas':
         return <OfertasContent />;
+      case 'newsletter':
+        return <NewsletterContent />;
+      case 'online-orders':
+        return <OnlineOrdersContent />;
       default:
         return <DashboardContent />;
     }

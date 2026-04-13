@@ -30,6 +30,8 @@ import {
   PieChart,
   Cog,
   Tag,
+  Mail,
+  Globe,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -140,6 +142,13 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           icon: Tag,
           permission: 'products.view',
           description: 'Descuentos y precios de oferta'
+        },
+        {
+          id: 'online-orders',
+          name: 'Pedidos online',
+          icon: Globe,
+          permission: 'sales.view',
+          description: 'Órdenes de la tienda en línea'
         }
       ]
     },
@@ -175,6 +184,13 @@ export default function Sidebar({ isOpen, onToggle, activeSection, onSectionChan
           icon: UserPlus,
           permission: 'customers.view',
           description: 'Base de datos de clientes'
+        },
+        {
+          id: 'newsletter',
+          name: 'Boletín',
+          icon: Mail,
+          permission: 'customers.view',
+          description: 'Gestión de boletín informativo'
         }
       ]
     },
