@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   ShoppingCart, Plus, Search, User, CreditCard,
   Trash2, Edit, Check, X, Calculator, Receipt,
@@ -99,38 +99,74 @@ export default function SalesContent() {
 
   // Estado para productos reales de la base de datos
   const [products, setProducts] = useState<Product[]>([]);
+  const productsIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // Cargar productos desde la API al montar el componente
-  useEffect(() => {
-    async function fetchProducts() {
-      try {
-        const response = await productApi.getProducts({ per_page: 1000 });
-        if (response?.success) {
-          const productsArray = Array.isArray(response.data?.data)
-            ? response.data.data
-            : Array.isArray(response.data)
-            ? response.data
-            : [];
-          const mapped: Product[] = productsArray.map((apiProduct: any) => ({
-            id: apiProduct.id,
-            name: apiProduct.name,
-            price: parseFloat(apiProduct.unit_price),
-            stock: parseFloat(apiProduct.stock_quantity),
-            code: apiProduct.sku,
-            category: apiProduct.category?.name || '',
-            brand_name: apiProduct.brand?.name || '',
-            compatible_models: apiProduct.compatible_models || '',
-            image_url: apiProduct.image_url || '',
-            sellByWeight: apiProduct.sell_by_weight || false,
-          }));
-          setProducts(mapped);
-        }
-      } catch (err) {
-        console.error('Error fetching products:', err);
+  const fetchProducts = useCallback(async () => {
+    try {
+      const response = await productApi.getProducts({ per_page: 1000 });
+      if (response?.success) {
+        const productsArray = Array.isArray(response.data?.data)
+          ? response.data.data
+          : Array.isArray(response.data)
+          ? response.data
+          : [];
+        const mapped: Product[] = productsArray.map((apiProduct: any) => ({
+          id: apiProduct.id,
+          name: apiProduct.name,
+          price: parseFloat(apiProduct.unit_price),
+          stock: parseFloat(apiProduct.stock_quantity),
+          code: apiProduct.sku,
+          category: apiProduct.category?.name || '',
+          brand_name: apiProduct.brand?.name || '',
+          compatible_models: apiProduct.compatible_models || '',
+          image_url: apiProduct.image_url || '',
+          sellByWeight: apiProduct.sell_by_weight || false,
+        }));
+        setProducts(mapped);
+
+        // Sync stock in current cart against fresh product data
+        setCart(prev => prev.map(cartItem => {
+          const fresh = mapped.find(p => p.id === cartItem.product.id);
+          if (!fresh) return cartItem;
+          return {
+            ...cartItem,
+            product: { ...cartItem.product, stock: fresh.stock, price: fresh.price },
+            quantity: Math.min(cartItem.quantity, fresh.stock > 0 ? fresh.stock : cartItem.quantity),
+          };
+        }));
       }
+    } catch {
+      // Ignore refresh errors silently
     }
-    fetchProducts();
   }, []);
+
+  // Load on mount
+  useEffect(() => {
+    fetchProducts();
+  }, [fetchProducts]);
+
+  // Refresh every 30 s — but only when the tab is visible
+  useEffect(() => {
+    const start = () => {
+      if (productsIntervalRef.current) return;
+      productsIntervalRef.current = setInterval(fetchProducts, 30_000);
+    };
+    const stop = () => {
+      if (productsIntervalRef.current) {
+        clearInterval(productsIntervalRef.current);
+        productsIntervalRef.current = null;
+      }
+    };
+
+    if (!document.hidden) start();
+    const onVisibility = () => (document.hidden ? stop() : start());
+    document.addEventListener('visibilitychange', onVisibility);
+
+    return () => {
+      stop();
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
+  }, [fetchProducts]);
 
   const [customers, setCustomers] = useState<Customer[]>([]);
 
@@ -226,15 +262,28 @@ export default function SalesContent() {
   });
 
   const addToCart = (product: Product) => {
-    const existingItem = cart.find(item => item.product.id === product.id);
+    // Use the freshest stock value we have
+    const freshProduct = products.find(p => p.id === product.id) ?? product;
+    if (freshProduct.stock <= 0) {
+      setSaleError(`Sin stock disponible para "${freshProduct.name}".`);
+      setTimeout(() => setSaleError(null), 3000);
+      return;
+    }
+    const existingItem = cart.find(item => item.product.id === freshProduct.id);
+    const currentQty = existingItem?.quantity ?? 0;
+    if (currentQty >= freshProduct.stock) {
+      setSaleError(`Stock máximo alcanzado para "${freshProduct.name}" (${freshProduct.stock} disponibles).`);
+      setTimeout(() => setSaleError(null), 3000);
+      return;
+    }
     if (existingItem) {
       setCart(cart.map(item =>
-        item.product.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
+        item.product.id === freshProduct.id
+          ? { ...item, product: freshProduct, quantity: item.quantity + 1 }
           : item
       ));
     } else {
-      setCart([...cart, { product, quantity: 1, discount: 0 }]);
+      setCart([...cart, { product: freshProduct, quantity: 1, discount: 0 }]);
     }
   };
 
@@ -387,9 +436,11 @@ export default function SalesContent() {
       removeFromCart(productId);
       return;
     }
-    setCart(cart.map(item => 
-      item.product.id === productId 
-        ? { ...item, quantity }
+    const freshProduct = products.find(p => p.id === productId);
+    const maxQty = freshProduct ? freshProduct.stock : Infinity;
+    setCart(cart.map(item =>
+      item.product.id === productId
+        ? { ...item, quantity: Math.min(quantity, maxQty) }
         : item
     ));
   };
@@ -829,12 +880,24 @@ export default function SalesContent() {
                 </div>
               ) : (
                 <div className="space-y-2 max-h-48 sm:max-h-56 overflow-y-auto">
-                  {cart.map((item) => (
-                    <div key={item.product.id} className="rounded-xl p-2 bg-gray-50/70 shadow-[0_1px_4px_rgba(0,0,0,0.05)]">
+                  {cart.map((item) => {
+                    const freshStock = products.find(p => p.id === item.product.id)?.stock ?? item.product.stock;
+                    const overStock = item.quantity > freshStock;
+                    const lowStock = freshStock > 0 && freshStock <= 3;
+                    return (
+                    <div key={item.product.id} className={`rounded-xl p-2 shadow-[0_1px_4px_rgba(0,0,0,0.05)] ${overStock ? 'bg-red-50 border border-red-200' : 'bg-gray-50/70'}`}>
                       <div className="flex justify-between items-start mb-1">
                         <div className="flex-1 min-w-0">
                           <h4 className="font-medium text-xs truncate">{item.product.name}</h4>
-                          <p className="text-xs text-gray-500">{item.product.code}</p>
+                          <div className="flex items-center gap-2">
+                            <p className="text-xs text-gray-500">{item.product.code}</p>
+                            {overStock && (
+                              <span className="text-xs font-semibold text-red-600">Solo {freshStock} en stock</span>
+                            )}
+                            {!overStock && lowStock && (
+                              <span className="text-xs font-semibold text-amber-600">Últimas {freshStock}</span>
+                            )}
+                          </div>
                         </div>
                         <button
                           onClick={() => removeFromCart(item.product.id)}
@@ -921,7 +984,7 @@ export default function SalesContent() {
                         </div>
                       )}
                     </div>
-                  ))}
+                  ); })}
                 </div>
               )}
             </div>

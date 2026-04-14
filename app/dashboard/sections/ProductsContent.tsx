@@ -865,6 +865,7 @@ const loadProducts = async () => {
             }}
             onImport={() => setShowImportModal(true)}
             onCreate={() => setModalMode('create')}
+            onRefresh={() => loadProducts()}
           />
         )}
       </div>

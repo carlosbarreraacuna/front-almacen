@@ -41,6 +41,7 @@ import {
   FileDown,
   Upload,
   Plus,
+  RefreshCw,
 } from 'lucide-react';
 
 interface Product {
@@ -72,6 +73,7 @@ interface ProductsDataTableProps {
   onView: (product: Product) => void;
   onImport?: () => void;
   onCreate?: () => void;
+  onRefresh?: () => void;
 }
 
 function ColumnFilter({
@@ -161,6 +163,7 @@ export function ProductsDataTable({
   onView,
   onImport,
   onCreate,
+  onRefresh,
 }: ProductsDataTableProps) {
   const [sorting, setSorting] = useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([]);
@@ -849,9 +852,21 @@ export function ProductsDataTable({
               <span>Importar Excel</span>
             </Button>
           )}
+          {onRefresh && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onRefresh}
+              title="Actualizar stock"
+              className="bg-gray-50 hover:bg-gray-100 text-gray-600 border-gray-200"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              <span>Actualizar</span>
+            </Button>
+          )}
           {onCreate && (
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               size="sm"
               onClick={onCreate}
               className="bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"

@@ -152,6 +152,13 @@ export default function OnlineOrdersContent() {
 
   const handleSave = async () => {
     if (!selected) return;
+    // Warn if manually setting to paid — this will decrement stock
+    if (form.status === 'paid' && selected.status !== 'paid') {
+      const ok = window.confirm(
+        '⚠️ Cambiar el estado a "Pagado" descontará el stock de los productos del pedido. ¿Confirmar?'
+      );
+      if (!ok) return;
+    }
     setSaving(true); setSaveError('');
     try {
       const res = await api<any>(`/admin/orders/${selected.id}`, { method: 'PUT', body: JSON.stringify(form) });
