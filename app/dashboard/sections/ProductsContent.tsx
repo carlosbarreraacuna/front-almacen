@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   Package,
   Plus,
@@ -8,6 +8,9 @@ import {
   Save,
   AlertCircle,
   Upload,
+  Calculator,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import {
   productApi,
@@ -48,6 +51,9 @@ interface Product {
   created_at?: string;
   updated_at?: string;
   cost_price?: number;
+  freight_cost?: number;
+  tax_rate?: number;
+  profit_margin?: number;
   unit_of_measure?: string;
   is_active?: boolean;
   category_id?: number;
@@ -60,16 +66,22 @@ interface ProductFormData {
   sku: string;
   category: string;
   brand_id: string;
-  price: number;
-  discount_percentage: number;
-  stock: number;
-  min_stock: number;
+  price: number | '';
+  discount_percentage: number | '';
+  stock: number | '';
+  min_stock: number | '';
   unit_of_measure: string;
   compatible_models: string;
   status: 'active' | 'inactive';
   description: string;
   images?: File[];
+  // Pricing calculator fields
+  cost_price: number | '';
+  freight_cost: number;
+  tax_rate: number;
+  profit_margin: number;
 }
+
 
 interface ProductFormErrors {
   name?: string;
@@ -112,16 +124,48 @@ export default function ProductsContent() {
   const [showCategoryModal, setShowCategoryModal] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState('');
   const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [showBrandModal, setShowBrandModal] = useState(false);
+  const [newBrandName, setNewBrandName] = useState('');
+  const [brandSubmitting, setBrandSubmitting] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
 
-  // Permite que, al crear una categoría desde el modal, se preseleccione automáticamente
+  // Permite que, al crear una categoría/marca desde el modal, se preseleccione automáticamente
   const [pendingCategoryId, setPendingCategoryId] = useState<string | null>(null);
+  const [pendingBrandId, setPendingBrandId] = useState<string | null>(null);
+
+  // Global pricing defaults (loaded from settings API)
+  const [pricingDefaults, setPricingDefaults] = useState({ iva: 19, flete: 0, profit_margin: 30 });
+
+  const loadPricingDefaults = useCallback(async () => {
+    try {
+      const token = Cookies.get('auth_token');
+      const res = await fetch(`${API_BASE}/settings?group=pricing`, {
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const map: Record<string, number> = {};
+        json.data.forEach((s: { key: string; value: number }) => {
+          const short = s.key.replace('pricing.default_', '');
+          map[short] = Number(s.value);
+        });
+        setPricingDefaults({
+          iva: map['iva'] ?? 19,
+          flete: map['flete'] ?? 0,
+          profit_margin: map['profit_margin'] ?? 30,
+        });
+      }
+    } catch {
+      // use defaults silently
+    }
+  }, []);
 
   // Cargar datos iniciales
   useEffect(() => {
     loadProducts();
     loadCategories();
     loadBrands();
+    loadPricingDefaults();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -169,6 +213,9 @@ const loadProducts = async () => {
         created_at: apiProduct.created_at,
         updated_at: apiProduct.updated_at,
         cost_price: toNumber(apiProduct.cost_price),
+        freight_cost: toNumber(apiProduct.freight_cost),
+        tax_rate: toNumber(apiProduct.tax_rate),
+        profit_margin: toNumber(apiProduct.profit_margin),
         unit_of_measure: apiProduct.unit_of_measure,
         is_active: apiProduct.is_active,
         brand_id: apiProduct.brand_id,
@@ -284,6 +331,34 @@ const loadProducts = async () => {
     }
   };
 
+  const createBrand = async () => {
+    const name = newBrandName.trim();
+    if (!name) return;
+
+    const exists = brands.some((b) => b.name.trim().toLowerCase() === name.toLowerCase());
+    if (exists) {
+      alert('Ya existe una marca con ese nombre.');
+      return;
+    }
+
+    try {
+      setBrandSubmitting(true);
+      const response = await brandApi.createBrand({ name });
+
+      if (response?.success && response.data) {
+        const newBrand: Brand = { id: response.data.id, name: response.data.name };
+        setBrands((prev) => [...prev, newBrand]);
+        setPendingBrandId(String(newBrand.id));
+        setShowBrandModal(false);
+        setNewBrandName('');
+      }
+    } catch (err) {
+      console.error('Error creating brand:', err);
+    } finally {
+      setBrandSubmitting(false);
+    }
+  };
+
   // CRUD Productos
   const createProduct = async (formData: ProductFormData) => {
     try {
@@ -293,11 +368,14 @@ const loadProducts = async () => {
       const createData: CreateProductData = {
         name: formData.name,
         sku: formData.sku,
-        unit_price: formData.price,
-        cost_price: formData.price,
-        discount_percentage: formData.discount_percentage || 0,
-        stock_quantity: formData.stock,
-        min_stock_level: formData.min_stock,
+        unit_price: Number(formData.price) || 0,
+        cost_price: Number(formData.cost_price) || 0,
+        freight_cost: formData.freight_cost,
+        tax_rate: formData.tax_rate,
+        profit_margin: formData.profit_margin,
+        discount_percentage: Number(formData.discount_percentage) || 0,
+        stock_quantity: Number(formData.stock) || 0,
+        min_stock_level: Number(formData.min_stock) || 0,
         unit_of_measure: formData.unit_of_measure || 'unidad',
         is_active: formData.status === 'active',
         description: formData.description || undefined,
@@ -332,11 +410,14 @@ const loadProducts = async () => {
       const updateData: UpdateProductData = {
         name: formData.name,
         sku: formData.sku,
-        unit_price: formData.price,
-        cost_price: formData.price,
-        discount_percentage: formData.discount_percentage || 0,
-        stock_quantity: formData.stock,
-        min_stock_level: formData.min_stock,
+        unit_price: Number(formData.price) || 0,
+        cost_price: Number(formData.cost_price) || 0,
+        freight_cost: formData.freight_cost,
+        tax_rate: formData.tax_rate,
+        profit_margin: formData.profit_margin,
+        discount_percentage: Number(formData.discount_percentage) || 0,
+        stock_quantity: Number(formData.stock) || 0,
+        min_stock_level: Number(formData.min_stock) || 0,
         unit_of_measure: formData.unit_of_measure || 'unidad',
         is_active: formData.status === 'active',
         description: formData.description || undefined,
@@ -429,42 +510,54 @@ const loadProducts = async () => {
   // -----------------------
   // Modal para Crear/Editar
   // -----------------------
-  const ProductModal: React.FC<{ pendingCategoryId: string | null }> = ({
+  const ProductModal: React.FC<{ pendingCategoryId: string | null; pendingBrandId: string | null }> = ({
     pendingCategoryId,
+    pendingBrandId,
   }) => {
     const emptyForm: ProductFormData = {
       name: '',
       sku: '',
       category: '',
       brand_id: '',
-      price: 0,
-      discount_percentage: 0,
-      stock: 0,
-      min_stock: 0,
+      price: '',
+      discount_percentage: '',
+      stock: '',
+      min_stock: '',
       unit_of_measure: '',
       compatible_models: '',
       status: 'active',
       description: '',
+      cost_price: '',
+      freight_cost: pricingDefaults.flete,
+      tax_rate: pricingDefaults.iva,
+      profit_margin: pricingDefaults.profit_margin,
     };
 
     const [formData, setFormData] = useState<ProductFormData>(emptyForm);
     const [errors, setErrors] = useState<ProductFormErrors>({});
+    const [showCalculator, setShowCalculator] = useState(true);
 
     useEffect(() => {
-      if (modalMode === 'edit' && selectedProduct) {
+      if ((modalMode === 'edit' || modalMode === 'view') && selectedProduct) {
         setFormData({
           name: selectedProduct.name,
           sku: selectedProduct.sku,
           category: selectedProduct.category_id?.toString() || '',
           brand_id: selectedProduct.brand_id?.toString() || '',
+          // Numéricos: asignar valor directo; solo cost_price usa '' cuando es 0 (significa "no configurado")
           price: selectedProduct.price,
-          discount_percentage: selectedProduct.discount_percentage ?? 0,
-          stock: selectedProduct.stock,
-          min_stock: selectedProduct.min_stock,
+          discount_percentage: selectedProduct.discount_percentage,   // 0 = sin descuento, es válido
+          stock: selectedProduct.stock,                               // 0 = agotado, es válido
+          min_stock: selectedProduct.min_stock,                       // 0 = sin mínimo, es válido
           unit_of_measure: selectedProduct.unit_of_measure || '',
           compatible_models: selectedProduct.compatible_models || '',
           status: selectedProduct.status,
           description: selectedProduct.description || '',
+          cost_price: selectedProduct.cost_price || '',               // 0 = no registrado → vacío
+          // Si el producto tiene valores propios los usa; si no, carga el default global
+          freight_cost: selectedProduct.freight_cost || pricingDefaults.flete,
+          tax_rate: selectedProduct.tax_rate || pricingDefaults.iva,
+          profit_margin: selectedProduct.profit_margin || pricingDefaults.profit_margin,
         });
       } else if (modalMode === 'create') {
         setFormData(emptyForm);
@@ -473,12 +566,18 @@ const loadProducts = async () => {
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [modalMode, selectedProduct]);
 
-    // Cuando se crea una categoría desde el modal de categoría, preseleccionarla
+    // Cuando se crea una categoría o marca desde su modal, preseleccionarla
     useEffect(() => {
       if (modalMode && modalMode !== 'view' && pendingCategoryId) {
         setFormData((prev) => ({ ...prev, category: pendingCategoryId }));
       }
     }, [pendingCategoryId, modalMode]);
+
+    useEffect(() => {
+      if (modalMode && modalMode !== 'view' && pendingBrandId) {
+        setFormData((prev) => ({ ...prev, brand_id: pendingBrandId }));
+      }
+    }, [pendingBrandId, modalMode]);
 
     const validateForm = (): boolean => {
       const newErrors: ProductFormErrors = {};
@@ -486,9 +585,9 @@ const loadProducts = async () => {
       if (!formData.name.trim()) newErrors.name = 'El nombre es requerido';
       if (!formData.sku.trim()) newErrors.sku = 'El SKU es requerido';
       if (!formData.category.trim()) newErrors.category = 'La categoría es requerida';
-      if (formData.price <= 0) newErrors.price = 'El precio debe ser mayor a 0';
-      if (formData.stock < 0) newErrors.stock = 'El stock no puede ser negativo';
-      if (formData.min_stock < 0)
+      if (formData.price === '' || Number(formData.price) <= 0) newErrors.price = 'El precio debe ser mayor a 0';
+      if (formData.stock !== '' && Number(formData.stock) < 0) newErrors.stock = 'El stock no puede ser negativo';
+      if (formData.min_stock !== '' && Number(formData.min_stock) < 0)
         newErrors.min_stock = 'El stock mínimo no puede ser negativo';
 
       // Validar SKU único en frontend
@@ -503,18 +602,39 @@ const loadProducts = async () => {
       return Object.keys(newErrors).length === 0;
     };
 
+    const n = (v: number | '') => (v === '' ? 0 : Number(v));
+
+    // Formato miles con punto (Colombia): 8000 → "8.000"
+    const fmtCOP = (v: number | '') =>
+      v === '' ? '' : Number(v).toLocaleString('es-CO', { maximumFractionDigits: 0 });
+
+    // Parsea "8.000" → 8000
+    const parseCOP = (raw: string): number | '' => {
+      const digits = raw.replace(/\./g, '').replace(/[^0-9]/g, '');
+      return digits === '' ? '' : parseInt(digits, 10);
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
       e.preventDefault();
       if (!validateForm()) return;
 
+      const normalized: ProductFormData = {
+        ...formData,
+        price: n(formData.price),
+        discount_percentage: n(formData.discount_percentage),
+        stock: n(formData.stock),
+        min_stock: n(formData.min_stock),
+        cost_price: n(formData.cost_price),
+      };
+
       if (modalMode === 'create') {
-        createProduct(formData);
+        createProduct(normalized);
       } else if (modalMode === 'edit' && selectedProduct) {
-        updateProduct(selectedProduct.id, formData);
+        updateProduct(selectedProduct.id, normalized);
       }
     };
 
-    const handleInputChange = (field: keyof ProductFormData, value: string | number) => {
+    const handleInputChange = (field: keyof ProductFormData, value: string | number | '') => {
       setFormData((prev) => ({ ...prev, [field]: value }));
       if (errors[field as keyof ProductFormErrors]) {
         setErrors((prev) => ({ ...prev, [field]: undefined }));
@@ -546,8 +666,8 @@ const loadProducts = async () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Nombre + SKU */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {/* Nombre + SKU + Categoría + Marca — una sola fila */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                 <input type="text" value={formData.name}
@@ -564,10 +684,6 @@ const loadProducts = async () => {
                   disabled={modalMode === 'view'} />
                 {errors.sku && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.sku}</p>}
               </div>
-            </div>
-
-            {/* Categoría + Marca */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Categoría *</label>
                 <div className="flex gap-2">
@@ -589,36 +705,196 @@ const loadProducts = async () => {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                <select value={formData.brand_id}
-                  onChange={(e) => handleInputChange('brand_id', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  disabled={modalMode === 'view'}>
-                  <option value="">Seleccionar marca</option>
-                  {brands.map((b) => <option key={b.id} value={b.id.toString()}>{b.name}</option>)}
-                </select>
+                <div className="flex gap-2">
+                  <select value={formData.brand_id}
+                    onChange={(e) => handleInputChange('brand_id', e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    disabled={modalMode === 'view'}>
+                    <option value="">Seleccionar marca</option>
+                    {brands.map((b) => <option key={b.id} value={b.id.toString()}>{b.name}</option>)}
+                  </select>
+                  {modalMode !== 'view' && (
+                    <button type="button" onClick={() => setShowBrandModal(true)}
+                      className="px-3 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700" title="Nueva marca">
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Precio + Descuento + Presentación */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Resumen de precio en modo vista */}
+            {modalMode === 'view' && (formData.cost_price !== '' && Number(formData.cost_price) > 0) && (
+              <div className="border border-blue-200 rounded-lg overflow-hidden">
+                <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 text-blue-800 font-medium text-sm">
+                  <Calculator className="w-4 h-4" />
+                  Estructura de precio
+                </div>
+                <div className="p-4 grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                  {[
+                    { label: 'Costo base', value: `$${Number(formData.cost_price).toLocaleString('es-CO')}` },
+                    { label: 'Flete', value: `$${formData.freight_cost.toLocaleString('es-CO')}` },
+                    { label: 'IVA', value: `${formData.tax_rate}%` },
+                    { label: 'Margen ganancia', value: `${formData.profit_margin}%` },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="bg-gray-50 rounded-lg p-3">
+                      <p className="text-xs text-gray-500 mb-1">{label}</p>
+                      <p className="font-semibold text-gray-800">{value}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Calculadora de precio */}
+            {modalMode !== 'view' && (
+              <div className="border border-blue-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setShowCalculator((v) => !v)}
+                  className="w-full flex items-center justify-between px-4 py-3 bg-blue-50 hover:bg-blue-100 text-blue-800 font-medium text-sm"
+                >
+                  <span className="flex items-center gap-2">
+                    <Calculator className="w-4 h-4" />
+                    Calculadora de precio
+                  </span>
+                  {showCalculator ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                </button>
+
+                {showCalculator && (() => {
+                  const base = formData.cost_price;
+                  const conFlete = base + formData.freight_cost;
+                  const conIva = conFlete * (1 + formData.tax_rate / 100);
+                  const conMargen = conIva * (1 + formData.profit_margin / 100);
+                  const fmt = (n: number) =>
+                    new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Math.round(n));
+
+                  return (
+                    <div className="p-4 space-y-4">
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Costo base *</label>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={fmtCOP(formData.cost_price)}
+                            placeholder="0"
+                            onChange={(e) => {
+                              const v = parseCOP(e.target.value);
+                              const numV = Number(v) || 0;
+                              const newConIva = (numV + formData.freight_cost) * (1 + formData.tax_rate / 100);
+                              const newPrecio = newConIva * (1 + formData.profit_margin / 100);
+                              setFormData((prev) => ({ ...prev, cost_price: v, price: v === '' ? '' : Math.round(newPrecio) }));
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Flete ($)</label>
+                          <input
+                            type="number" step="100" min="0"
+                            value={formData.freight_cost}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value) || 0;
+                              const newConIva = (formData.cost_price + v) * (1 + formData.tax_rate / 100);
+                              const newPrecio = newConIva * (1 + formData.profit_margin / 100);
+                              setFormData((prev) => ({ ...prev, freight_cost: v, price: Math.round(newPrecio) }));
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">IVA (%)</label>
+                          <input
+                            type="number" step="0.5" min="0" max="100"
+                            value={formData.tax_rate}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value) || 0;
+                              const newConIva = (formData.cost_price + formData.freight_cost) * (1 + v / 100);
+                              const newPrecio = newConIva * (1 + formData.profit_margin / 100);
+                              setFormData((prev) => ({ ...prev, tax_rate: v, price: Math.round(newPrecio) }));
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium text-gray-600 mb-1">Margen (%)</label>
+                          <input
+                            type="number" step="0.5" min="0" max="1000"
+                            value={formData.profit_margin}
+                            onChange={(e) => {
+                              const v = parseFloat(e.target.value) || 0;
+                              const newConIva = (formData.cost_price + formData.freight_cost) * (1 + formData.tax_rate / 100);
+                              const newPrecio = newConIva * (1 + v / 100);
+                              setFormData((prev) => ({ ...prev, profit_margin: v, price: Math.round(newPrecio) }));
+                            }}
+                            className="w-full px-2 py-1.5 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 text-sm"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Desglose */}
+                      {formData.cost_price > 0 && (
+                        <div className="bg-gray-50 rounded-lg p-3 text-xs font-mono space-y-1">
+                          <div className="flex justify-between text-gray-500">
+                            <span>Costo base</span><span>{fmt(base)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-500">
+                            <span>+ Flete</span><span>+ {fmt(formData.freight_cost)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-600 border-t border-gray-200 pt-1">
+                            <span>Subtotal</span><span>{fmt(conFlete)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-500">
+                            <span>+ IVA {formData.tax_rate}%</span>
+                            <span>+ {fmt(conFlete * formData.tax_rate / 100)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-600 border-t border-gray-200 pt-1">
+                            <span>Subtotal con IVA</span><span>{fmt(conIva)}</span>
+                          </div>
+                          <div className="flex justify-between text-gray-500">
+                            <span>+ Margen {formData.profit_margin}%</span>
+                            <span>+ {fmt(conIva * formData.profit_margin / 100)}</span>
+                          </div>
+                          <div className="flex justify-between font-bold text-blue-700 border-t-2 border-blue-300 pt-1 text-sm">
+                            <span>Precio de venta</span><span>{fmt(conMargen)}</span>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+
+            {/* Precio + Descuento + Presentación + Stock + Stock Mínimo + Estado */}
+            <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Precio *</label>
-                <input type="number" step="0.01" min="0" value={formData.price}
-                  onChange={(e) => handleInputChange('price', parseFloat(e.target.value) || 0)}
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Precio de venta *
+                  {modalMode !== 'view' && <span className="text-xs text-gray-400 font-normal ml-1"></span>}
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={fmtCOP(formData.price)}
+                  placeholder="0"
+                  onChange={(e) => handleInputChange('price', parseCOP(e.target.value))}
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.price ? 'border-red-500' : 'border-gray-300'}`}
                   disabled={modalMode === 'view'} />
-                {errors.price && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.price}</p>}
+                {errors.price && <p className="text-red-500 text-xs mt-1 flex items-center"><AlertCircle className="w-3 h-3 mr-1" />{errors.price}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Descuento (%)</label>
                 <input type="number" step="1" min="0" max="100" value={formData.discount_percentage}
-                  onChange={(e) => handleInputChange('discount_percentage', Math.min(100, Math.max(0, parseInt(e.target.value) || 0)))}
+                  onChange={(e) => handleInputChange('discount_percentage', e.target.value === '' ? '' : Math.min(100, Math.max(0, parseInt(e.target.value))))}
+                  placeholder="0"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   disabled={modalMode === 'view'} />
-                {formData.discount_percentage > 0 && (
+                {Number(formData.discount_percentage) > 0 && (
                   <p className="text-xs text-green-600 mt-1">
-                    Precio oferta: {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(
-                      Math.round(formData.price * (1 - formData.discount_percentage / 100))
+                    {new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(
+                      Math.round(Number(formData.price) * (1 - Number(formData.discount_percentage) / 100))
                     )}
                   </p>
                 )}
@@ -627,29 +903,27 @@ const loadProducts = async () => {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Presentación</label>
                 <input type="text" value={formData.unit_of_measure}
                   onChange={(e) => handleInputChange('unit_of_measure', e.target.value)}
-                  placeholder="Ej: CAJA X10, unidad"
+                  placeholder="Ej: CAJA X10"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   disabled={modalMode === 'view'} />
               </div>
-            </div>
-
-            {/* Stock + Stock Mínimo + Estado */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stock *</label>
                 <input type="number" min="0" value={formData.stock}
-                  onChange={(e) => handleInputChange('stock', parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('stock', e.target.value === '' ? '' : parseInt(e.target.value))}
+                  placeholder="0"
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.stock ? 'border-red-500' : 'border-gray-300'}`}
                   disabled={modalMode === 'view'} />
-                {errors.stock && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.stock}</p>}
+                {errors.stock && <p className="text-red-500 text-xs mt-1 flex items-center"><AlertCircle className="w-3 h-3 mr-1" />{errors.stock}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Stock Mínimo *</label>
                 <input type="number" min="0" value={formData.min_stock}
-                  onChange={(e) => handleInputChange('min_stock', parseInt(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange('min_stock', e.target.value === '' ? '' : parseInt(e.target.value))}
+                  placeholder="0"
                   className={`w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${errors.min_stock ? 'border-red-500' : 'border-gray-300'}`}
                   disabled={modalMode === 'view'} />
-                {errors.min_stock && <p className="text-red-500 text-sm mt-1 flex items-center"><AlertCircle className="w-4 h-4 mr-1" />{errors.min_stock}</p>}
+                {errors.min_stock && <p className="text-red-500 text-xs mt-1 flex items-center"><AlertCircle className="w-3 h-3 mr-1" />{errors.min_stock}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
@@ -733,7 +1007,7 @@ const loadProducts = async () => {
               {/* Subir nuevas imágenes */}
               {modalMode !== 'view' && (
                 <>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-blue-500 transition-colors cursor-pointer">
+                  <div className="border border-dashed border-gray-300 rounded-lg hover:border-blue-400 transition-colors cursor-pointer">
                     <input
                       type="file"
                       accept="image/jpeg,image/png,image/jpg,image/gif,image/webp"
@@ -750,10 +1024,10 @@ const loadProducts = async () => {
                       className="hidden"
                       id="product-images"
                     />
-                    <label htmlFor="product-images" className="cursor-pointer block">
-                      <Upload className="w-8 h-8 text-gray-400 mx-auto mb-1" />
-                      <p className="text-sm text-gray-600">Haz clic para agregar imágenes</p>
-                      <p className="text-xs text-gray-400 mt-0.5">JPG, PNG, WEBP · máx. 5MB · hasta 5 por producto</p>
+                    <label htmlFor="product-images" className="cursor-pointer flex items-center gap-2 px-3 py-2">
+                      <Upload className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <span className="text-sm text-gray-600">Agregar imágenes</span>
+                      <span className="text-xs text-gray-400 ml-auto">JPG, PNG, WEBP · máx. 5MB · hasta 5</span>
                     </label>
                   </div>
 
@@ -963,6 +1237,56 @@ const loadProducts = async () => {
         </div>
       )}
 
+      {/* Modal Crear Marca */}
+      {showBrandModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Crear Nueva Marca</h3>
+              <button
+                onClick={() => { setShowBrandModal(false); setNewBrandName(''); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Nombre de la marca *
+              </label>
+              <input
+                type="text"
+                value={newBrandName}
+                onChange={(e) => setNewBrandName(e.target.value)}
+                placeholder="Ingresa el nombre de la marca"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                onKeyDown={(e) => { if (e.key === 'Enter' && !brandSubmitting) createBrand(); }}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => { setShowBrandModal(false); setNewBrandName(''); }}
+                disabled={brandSubmitting}
+                className="px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={createBrand}
+                disabled={brandSubmitting || !newBrandName.trim()}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 flex items-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {brandSubmitting && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />}
+                <span>{brandSubmitting ? 'Creando...' : 'Crear Marca'}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Modal de Importación */}
       <ProductImportModal
         isOpen={showImportModal}
@@ -974,7 +1298,7 @@ const loadProducts = async () => {
       />
 
       {/* Modal de Producto */}
-      <ProductModal pendingCategoryId={pendingCategoryId} />
+      <ProductModal pendingCategoryId={pendingCategoryId} pendingBrandId={pendingBrandId} />
     </div>
   );
 }

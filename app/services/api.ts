@@ -54,6 +54,8 @@ export interface ApiProduct {
   is_active: boolean;
   discount_percentage?: number;
   tax_rate?: number;
+  freight_cost?: number;
+  profit_margin?: number;
   supplier_id?: number;
   location_id?: number;
   created_at: string;
@@ -98,6 +100,8 @@ export interface CreateProductData {
   image_url?: string;
   is_active?: boolean;
   tax_rate?: number;
+  freight_cost?: number;
+  profit_margin?: number;
   supplier_id?: number;
   location_id?: number;
   discount_percentage?: number;

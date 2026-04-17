@@ -1,13 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
-import { 
-  Settings, 
-  Save, 
-  Database, 
-  Shield, 
-  Bell, 
-  Palette, 
+import React, { useState, useEffect } from 'react';
+import {
+  Settings,
+  Save,
+  Database,
+  Shield,
+  Bell,
+  Palette,
   Globe,
   X,
   Edit,
@@ -27,8 +27,13 @@ import {
   HardDrive,
   Wifi,
   Eye,
-  EyeOff
+  EyeOff,
+  DollarSign,
+  Calculator
 } from 'lucide-react';
+import Cookies from 'js-cookie';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000/api';
 
 export default function SettingsContent() {
   const [activeTab, setActiveTab] = useState('general');
@@ -84,6 +89,83 @@ export default function SettingsContent() {
     cacheEnabled: true
   });
   
+  // Pricing settings state
+  const [pricingSettings, setPricingSettings] = useState({
+    default_iva: 19,
+    default_flete: 0,
+    default_profit_margin: 30,
+  });
+  const [pricingLoading, setPricingLoading] = useState(false);
+  const [pricingSaving, setPricingSaving] = useState(false);
+  const [pricingError, setPricingError] = useState<string | null>(null);
+  const [pricingSaved, setPricingSaved] = useState(false);
+
+  const loadPricingSettings = async () => {
+    setPricingLoading(true);
+    setPricingError(null);
+    try {
+      const token = Cookies.get('auth_token');
+      const res = await fetch(`${API_BASE}/settings?group=pricing`, {
+        headers: { ...(token && { Authorization: `Bearer ${token}` }) },
+      });
+      const json = await res.json();
+      if (json.success && Array.isArray(json.data)) {
+        const map: Record<string, number> = {};
+        json.data.forEach((s: { key: string; value: number }) => {
+          const short = s.key.replace('pricing.default_', '');
+          map[short] = Number(s.value);
+        });
+        setPricingSettings((prev) => ({
+          default_iva: map['iva'] ?? prev.default_iva,
+          default_flete: map['flete'] ?? prev.default_flete,
+          default_profit_margin: map['profit_margin'] ?? prev.default_profit_margin,
+        }));
+      }
+    } catch {
+      setPricingError('Error al cargar configuración de precios');
+    } finally {
+      setPricingLoading(false);
+    }
+  };
+
+  const savePricingSettings = async () => {
+    setPricingSaving(true);
+    setPricingError(null);
+    try {
+      const token = Cookies.get('auth_token');
+      const res = await fetch(`${API_BASE}/settings`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        body: JSON.stringify({
+          settings: [
+            { key: 'pricing.default_iva', value: pricingSettings.default_iva },
+            { key: 'pricing.default_flete', value: pricingSettings.default_flete },
+            { key: 'pricing.default_profit_margin', value: pricingSettings.default_profit_margin },
+          ],
+        }),
+      });
+      const json = await res.json();
+      if (json.success) {
+        setPricingSaved(true);
+        setTimeout(() => setPricingSaved(false), 3000);
+      } else {
+        setPricingError('Error al guardar');
+      }
+    } catch {
+      setPricingError('Error de conexión');
+    } finally {
+      setPricingSaving(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'pricing') loadPricingSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
+
   const [apiKeys, setApiKeys] = useState([
     { id: '1', name: 'API Principal', key: 'sk_live_***************', status: 'active', created: '2024-01-15' },
     { id: '2', name: 'API Desarrollo', key: 'sk_test_***************', status: 'active', created: '2024-01-10' },
@@ -98,6 +180,7 @@ export default function SettingsContent() {
 
   const tabs = [
     { id: 'general', name: 'General', icon: Settings },
+    { id: 'pricing', name: 'Precios', icon: DollarSign },
     { id: 'security', name: 'Seguridad', icon: Shield },
     { id: 'notifications', name: 'Notificaciones', icon: Bell },
     { id: 'appearance', name: 'Apariencia', icon: Palette },
@@ -577,6 +660,182 @@ export default function SettingsContent() {
         );
       
       default:
+      case 'pricing':
+        return (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold flex items-center gap-2">
+                  <Calculator className="w-5 h-5 text-blue-600" />
+                  Configuración de Precios
+                </h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  Valores por defecto que se cargan al crear un nuevo producto. Cada producto puede tener sus propios valores.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={loadPricingSettings}
+                disabled={pricingLoading}
+                className="p-2 text-gray-400 hover:text-gray-600 rounded-lg"
+                title="Recargar"
+              >
+                <RefreshCw className={`w-4 h-4 ${pricingLoading ? 'animate-spin' : ''}`} />
+              </button>
+            </div>
+
+            {pricingError && (
+              <div className="flex items-center gap-2 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                {pricingError}
+              </div>
+            )}
+
+            {pricingLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    IVA por defecto (%)
+                  </label>
+                  <p className="text-xs text-gray-400 mb-3">Colombia: 19% · Exento: 0%</p>
+                  <input
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    max="100"
+                    value={pricingSettings.default_iva}
+                    onChange={(e) =>
+                      setPricingSettings((p) => ({ ...p, default_iva: parseFloat(e.target.value) || 0 }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-lg font-semibold"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Ejemplo: costo $100 → con IVA {pricingSettings.default_iva}% = $
+                    {(100 * (1 + pricingSettings.default_iva / 100)).toFixed(0)}
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Flete por defecto ($)
+                  </label>
+                  <p className="text-xs text-gray-400 mb-3">Costo fijo de transporte por producto</p>
+                  <input
+                    type="number"
+                    step="100"
+                    min="0"
+                    value={pricingSettings.default_flete}
+                    onChange={(e) =>
+                      setPricingSettings((p) => ({ ...p, default_flete: parseFloat(e.target.value) || 0 }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-lg font-semibold"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Se suma al costo base antes de aplicar IVA y margen
+                  </p>
+                </div>
+
+                <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Margen de ganancia por defecto (%)
+                  </label>
+                  <p className="text-xs text-gray-400 mb-3">% de ganancia sobre el costo total</p>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    max="1000"
+                    value={pricingSettings.default_profit_margin}
+                    onChange={(e) =>
+                      setPricingSettings((p) => ({
+                        ...p,
+                        default_profit_margin: parseFloat(e.target.value) || 0,
+                      }))
+                    }
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 bg-white text-lg font-semibold"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">
+                    Ejemplo: costo $100 → margen {pricingSettings.default_profit_margin}% = $
+                    {(100 * (1 + pricingSettings.default_profit_margin / 100)).toFixed(0)}
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Ejemplo de cálculo completo */}
+            {!pricingLoading && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-5">
+                <h4 className="text-sm font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                  <Calculator className="w-4 h-4" />
+                  Ejemplo de cálculo con defaults actuales (costo base $50.000)
+                </h4>
+                <div className="space-y-1 text-sm font-mono">
+                  {(() => {
+                    const base = 50000;
+                    const conFlete = base + pricingSettings.default_flete;
+                    const conIva = conFlete * (1 + pricingSettings.default_iva / 100);
+                    const conMargen = conIva * (1 + pricingSettings.default_profit_margin / 100);
+                    const fmt = (n: number) =>
+                      new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }).format(Math.round(n));
+                    return (
+                      <>
+                        <div className="flex justify-between text-gray-600">
+                          <span>Costo base</span><span>{fmt(base)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600">
+                          <span>+ Flete</span><span>+ {fmt(pricingSettings.default_flete)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600 border-t border-blue-200 pt-1">
+                          <span>Subtotal</span><span>{fmt(conFlete)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600">
+                          <span>+ IVA {pricingSettings.default_iva}%</span>
+                          <span>+ {fmt(conFlete * pricingSettings.default_iva / 100)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600 border-t border-blue-200 pt-1">
+                          <span>Subtotal con IVA</span><span>{fmt(conIva)}</span>
+                        </div>
+                        <div className="flex justify-between text-gray-600">
+                          <span>+ Margen {pricingSettings.default_profit_margin}%</span>
+                          <span>+ {fmt(conIva * pricingSettings.default_profit_margin / 100)}</span>
+                        </div>
+                        <div className="flex justify-between font-bold text-blue-800 border-t-2 border-blue-400 pt-1 text-base">
+                          <span>Precio de venta</span><span>{fmt(conMargen)}</span>
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-end gap-3 pt-2">
+              {pricingSaved && (
+                <span className="flex items-center gap-1 text-green-600 text-sm">
+                  <Check className="w-4 h-4" /> Guardado
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={savePricingSettings}
+                disabled={pricingSaving || pricingLoading}
+                className="flex items-center gap-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              >
+                {pricingSaving ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" />
+                ) : (
+                  <Save className="w-4 h-4" />
+                )}
+                <span>Guardar Cambios</span>
+              </button>
+            </div>
+          </div>
+        );
+
         return null;
     }
   };
@@ -619,24 +878,26 @@ export default function SettingsContent() {
         <div className="p-6">
           {renderTabContent()}
           
-          {/* Save Button */}
-          <div className="mt-8 pt-6 border-t border-gray-200">
-            <div className="flex justify-end">
-              <button 
-                onClick={() => handleSaveSettings(activeTab, 
-                  activeTab === 'general' ? generalSettings :
-                  activeTab === 'security' ? securitySettings :
-                  activeTab === 'notifications' ? notificationSettings :
-                  activeTab === 'appearance' ? appearanceSettings :
-                  activeTab === 'system' ? systemSettings : {}
-                )}
-                className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
-              >
-                <Save className="w-4 h-4" />
-                <span>Guardar Cambios</span>
-              </button>
+          {/* Save Button — hidden on pricing tab (has its own save) */}
+          {activeTab !== 'pricing' && (
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="flex justify-end">
+                <button
+                  onClick={() => handleSaveSettings(activeTab,
+                    activeTab === 'general' ? generalSettings :
+                    activeTab === 'security' ? securitySettings :
+                    activeTab === 'notifications' ? notificationSettings :
+                    activeTab === 'appearance' ? appearanceSettings :
+                    activeTab === 'system' ? systemSettings : {}
+                  )}
+                  className="flex items-center space-x-2 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+                >
+                  <Save className="w-4 h-4" />
+                  <span>Guardar Cambios</span>
+                </button>
+              </div>
             </div>
-          </div>
+          )}
          </div>
        </div>
        

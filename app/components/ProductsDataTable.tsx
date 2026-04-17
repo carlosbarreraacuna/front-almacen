@@ -60,6 +60,9 @@ interface Product {
   created_at?: string;
   updated_at?: string;
   cost_price?: number;
+  freight_cost?: number;
+  tax_rate?: number;
+  profit_margin?: number;
   unit_of_measure?: string;
   is_active?: boolean;
   category_id?: number;
@@ -764,34 +767,74 @@ export function ProductsDataTable({
   });
 
   const handleExport = () => {
-    // Exporta los datos actualmente filtrados/visibles en la tabla
     const rows = table.getFilteredRowModel().rows;
 
-    const exportData = rows.map((row) => {
-      const p = row.original;
-      return {
-        'SKU':               p.sku,
-        'Nombre':            p.name,
-        'Categoría':         p.category,
-        'Precio Venta':      p.price,
-        'Costo':             p.cost_price ?? '',
-        'Stock':             p.stock,
-        'Stock Mínimo':      p.min_stock,
-        'Unidad de Medida':  p.unit_of_measure ?? '',
-        'Marca':             p.brand_name ?? '',
-        'Modelos Compatibles': p.compatible_models ?? '',
-        'Descripción':       p.description ?? '',
-        'Fecha Creación':    p.created_at ? new Date(p.created_at).toLocaleDateString('es-CO') : '',
-      };
+    // Orden idéntico al de la plantilla de importación:
+    // A=SKU  B=Nombre  C=Categoría
+    // D=Costo Base  E=Flete($)  F=IVA(%)  G=Margen(%)
+    // H=Precio Venta  ← fórmula =ROUND((D+E)*(1+F/100)*(1+G/100),0)
+    // I=Descuento(%)  J=Stock  K=StockMin  L=Presentación
+    // M=Marca  N=Modelos  O=Descripción  P=Estado  Q=Fecha
+    const headers = [
+      'SKU', 'Nombre', 'Categoría',
+      'Costo Base', 'Flete ($)', 'IVA (%)', 'Margen Ganancia (%)',
+      'Precio Venta',
+      'Descuento (%)', 'Stock', 'Stock Mínimo', 'Unidad de Medida',
+      'Marca', 'Modelos Compatibles', 'Descripción', 'Estado', 'Fecha Creación',
+    ];
+
+    const dataRows = rows.map((row, idx) => {
+      const p  = row.original;
+      const r  = idx + 2; // fila 1 = cabecera, datos desde fila 2
+      const hasCost = (p.cost_price ?? 0) > 0;
+
+      // Precio Venta: fórmula si tiene costo registrado; valor estático si no
+      const precioVenta = hasCost
+        ? { t: 'n', f: `ROUND((D${r}+E${r})*(1+F${r}/100)*(1+G${r}/100),0)` }
+        : p.price;
+
+      return [
+        p.sku,
+        p.name,
+        p.category,
+        p.cost_price    ?? 0,   // D
+        p.freight_cost  ?? 0,   // E
+        p.tax_rate      ?? 0,   // F
+        p.profit_margin ?? 0,   // G
+        precioVenta,             // H — fórmula o valor guardado
+        p.discount_percentage || 0,
+        p.stock,
+        p.min_stock,
+        p.unit_of_measure   ?? '',
+        p.brand_name        ?? '',
+        p.compatible_models ?? '',
+        p.description       ?? '',
+        p.status === 'active' ? 'Activo' : 'Inactivo',
+        p.created_at ? new Date(p.created_at).toLocaleDateString('es-CO') : '',
+      ];
     });
 
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...dataRows]);
 
-    // Ajustar ancho de columnas automáticamente
-    const colWidths = Object.keys(exportData[0] ?? {}).map((key) => ({
-      wch: Math.max(key.length, ...exportData.map((row) => String((row as any)[key] ?? '').length), 10),
-    }));
-    worksheet['!cols'] = colWidths;
+    worksheet['!cols'] = [
+      { wch: 15 }, // A  SKU
+      { wch: 32 }, // B  Nombre
+      { wch: 22 }, // C  Categoría
+      { wch: 12 }, // D  Costo Base
+      { wch: 10 }, // E  Flete
+      { wch: 8  }, // F  IVA
+      { wch: 22 }, // G  Margen
+      { wch: 16 }, // H  Precio Venta
+      { wch: 13 }, // I  Descuento
+      { wch: 8  }, // J  Stock
+      { wch: 13 }, // K  Stock Mínimo
+      { wch: 18 }, // L  Presentación
+      { wch: 16 }, // M  Marca
+      { wch: 32 }, // N  Modelos
+      { wch: 32 }, // O  Descripción
+      { wch: 10 }, // P  Estado
+      { wch: 14 }, // Q  Fecha
+    ];
 
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Productos');

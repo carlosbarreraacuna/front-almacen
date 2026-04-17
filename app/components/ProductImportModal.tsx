@@ -79,26 +79,55 @@ export function ProductImportModal({ isOpen, onClose, onImportSuccess }: Product
   const handleDownloadTemplate = async () => {
     try {
       const result = await productApi.getImportTemplate();
-      
+
       if (result.success) {
-        const { headers, example } = result.data;
-        
-        // Crear workbook
-        const wb = XLSX.utils.book_new();
-        
-        // Crear hoja con encabezados y ejemplo
-        const wsData = [headers, example];
+        const { headers, example } = result.data as { headers: string[]; example: (string | number)[] };
+
+        // Col H (índice 7) = Precio Venta — aquí va la fórmula
+        // D=idx3(Costo)  E=idx4(Flete)  F=idx5(IVA)  G=idx6(Margen)  H=idx7(Precio)
+        const buildPrecioFormula = (row: number) => ({
+          t: 'n' as const,
+          f: `ROUND((D${row}+E${row})*(1+F${row}/100)*(1+G${row}/100),0)`,
+        });
+
+        // Fila de ejemplo con fórmula en col H (fila 2)
+        const exampleRow = [...example];
+        exampleRow[7] = buildPrecioFormula(2);
+
+        // 30 filas vacías pre-formuladas (filas 3–32) para que el usuario ingrese datos
+        const emptyRows = Array.from({ length: 30 }, (_, i) => {
+          const row = new Array(headers.length).fill('');
+          row[7] = buildPrecioFormula(i + 3);
+          return row;
+        });
+
+        const wsData = [headers, exampleRow, ...emptyRows];
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        
-        // Ajustar ancho de columnas
-        ws['!cols'] = headers.map(() => ({ wch: 20 }));
-        
+
+        ws['!cols'] = [
+          { wch: 15 }, // A  SKU
+          { wch: 32 }, // B  Nombre
+          { wch: 22 }, // C  Categoría
+          { wch: 12 }, // D  Costo Base
+          { wch: 10 }, // E  Flete
+          { wch: 8  }, // F  IVA
+          { wch: 22 }, // G  Margen
+          { wch: 16 }, // H  Precio Venta (fórmula)
+          { wch: 13 }, // I  Descuento
+          { wch: 8  }, // J  Stock
+          { wch: 13 }, // K  Stock Mínimo
+          { wch: 18 }, // L  Presentación
+          { wch: 16 }, // M  Marca
+          { wch: 32 }, // N  Modelos Compatibles
+          { wch: 32 }, // O  Descripción
+          { wch: 14 }, // P  Fecha Creación
+        ];
+
+        const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Productos');
-        
-        // Descargar archivo
         XLSX.writeFile(wb, 'plantilla_importacion_productos.xlsx');
       }
-    } catch (err: any) {
+    } catch {
       setError('Error al descargar la plantilla');
     }
   };
@@ -129,15 +158,57 @@ export function ProductImportModal({ isOpen, onClose, onImportSuccess }: Product
 
         <div className="p-6 space-y-6">
           {/* Instrucciones */}
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h3 className="text-sm font-semibold text-blue-900 mb-2">Instrucciones:</h3>
-            <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
-              <li>Descarga la plantilla de Excel haciendo clic en el botón de abajo</li>
-              <li>Completa los datos de los productos en la plantilla</li>
-              <li>Los campos obligatorios son: SKU, nombre, precio y stock</li>
-              <li>Si el SKU ya existe, el producto se actualizará</li>
-              <li>Sube el archivo completado para importar</li>
-            </ul>
+          <div className="space-y-3">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h3 className="text-sm font-semibold text-blue-900 mb-2">Instrucciones generales:</h3>
+              <ul className="text-sm text-blue-800 space-y-1 list-disc list-inside">
+                <li>Descarga la plantilla y completa los datos</li>
+                <li>Campos obligatorios: <strong>SKU, Nombre, Stock</strong></li>
+                <li>Si el SKU ya existe, el producto se actualizará</li>
+                <li>Categoría y Marca se crean automáticamente si no existen</li>
+              </ul>
+            </div>
+
+            <div className="border border-gray-200 rounded-lg overflow-hidden">
+              <div className="bg-gray-50 px-4 py-2 border-b border-gray-200">
+                <p className="text-xs font-semibold text-gray-700">Columnas de la plantilla</p>
+              </div>
+              <div className="divide-y divide-gray-100 text-xs">
+                {[
+                  { col: 'A — SKU', req: true,  desc: 'Código único del producto' },
+                  { col: 'B — Nombre', req: true,  desc: 'Nombre del producto' },
+                  { col: 'C — Categoría', req: false, desc: 'Se crea si no existe' },
+                  { col: 'D — Costo Base', req: false, desc: 'Precio de compra sin extras' },
+                  { col: 'E — Flete ($)', req: false, desc: 'Costo de transporte por producto' },
+                  { col: 'F — IVA (%)', req: false, desc: 'Ej: 19 para gravado, 0 para exento' },
+                  { col: 'G — Margen (%)', req: false, desc: 'Porcentaje de ganancia' },
+                  { col: 'H — Precio Venta', req: false, desc: 'Fórmula automática. Escribe manualmente para anular' },
+                  { col: 'I — Descuento (%)', req: false, desc: '0–100' },
+                  { col: 'J — Stock', req: true,  desc: 'Cantidad disponible' },
+                  { col: 'K — Stock Mínimo', req: false, desc: 'Para alertas de stock bajo' },
+                  { col: 'L — Unidad de Medida', req: false, desc: 'Ej: CAJA X10, unidad' },
+                  { col: 'M — Marca', req: false, desc: 'Se crea si no existe' },
+                  { col: 'N — Modelos Compatibles', req: false, desc: 'Separados por / (ej: BM100 / PULSAR 180)' },
+                  { col: 'O — Descripción', req: false, desc: '' },
+                ].map(({ col, req, desc }) => (
+                  <div key={col} className="flex items-start px-4 py-1.5 gap-3">
+                    <span className="w-40 font-medium text-gray-700 flex-shrink-0">
+                      {col}
+                      {req && <span className="ml-1 text-red-500">*</span>}
+                    </span>
+                    <span className="text-gray-500">{desc}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800">
+              <p className="font-semibold mb-1">Fórmula de precio automático:</p>
+              <code className="block bg-amber-100 px-2 py-1 rounded font-mono">
+                Precio = (Costo Base + Flete) × (1 + IVA/100) × (1 + Margen/100)
+              </code>
+              <p className="mt-1">Ejemplo: (8.000 + 2.000) × 1,19 × 1,30 = <strong>$15.470</strong></p>
+            </div>
           </div>
 
           {/* Botón descargar plantilla */}

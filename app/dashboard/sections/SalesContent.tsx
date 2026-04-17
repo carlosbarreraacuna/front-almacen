@@ -446,20 +446,18 @@ export default function SalesContent() {
   };
 
   const updateDiscount = (productId: number, discount: number) => {
-    setCart(cart.map(item => 
-      item.product.id === productId 
-        ? { ...item, discount: Math.max(0, Math.min(100, discount)) }
-        : item
-    ));
+    setCart(cart.map(item => {
+      if (item.product.id !== productId) return item;
+      const maxDiscount = (item.specialPrice || item.product.price) * item.quantity;
+      return { ...item, discount: Math.max(0, Math.min(maxDiscount, discount)) };
+    }));
   };
 
   const calculateSubtotal = () => {
     return cart.reduce((total, item) => {
-      // Usar precio especial si está disponible, sino usar precio del producto
       const unitPrice = item.specialPrice || item.product.price;
       const itemTotal = unitPrice * item.quantity;
-      const discountAmount = (itemTotal * item.discount) / 100;
-      return total + (itemTotal - discountAmount);
+      return total + Math.max(0, itemTotal - item.discount);
     }, 0);
   };
 
@@ -540,7 +538,7 @@ export default function SalesContent() {
         product_id: item.product.id,
         quantity: item.quantity,
         unit_price: item.specialPrice ?? item.product.price,
-        discount_amount: ((item.specialPrice ?? item.product.price) * item.quantity * item.discount) / 100,
+        discount_amount: item.discount,
       }));
 
       const response = await saleApi.createSale({
@@ -924,20 +922,41 @@ export default function SalesContent() {
                           </button>
                         </div>
                         <div className="text-right">
-                          <span className="text-xs font-semibold text-green-600">
-                            {formatCurrency((item.specialPrice || item.product.price) * item.quantity * (1 - item.discount / 100))}
-                          </span>
-                          {item.specialPrice && (
-                            <div className="text-xs text-blue-600">
-                              Precio especial
-                            </div>
+                          {item.discount > 0 ? (
+                            <>
+                              <span className="text-xs text-gray-400 line-through">
+                                {formatCurrency((item.specialPrice || item.product.price) * item.quantity)}
+                              </span>
+                              <div className="text-xs text-orange-600 font-medium">
+                                -{formatCurrency(item.discount)}
+                              </div>
+                              <div className="text-xs font-semibold text-green-600">
+                                {formatCurrency(Math.max(0, (item.specialPrice || item.product.price) * item.quantity - item.discount))}
+                              </div>
+                            </>
+                          ) : (
+                            <span className="text-xs font-semibold text-green-600">
+                              {formatCurrency((item.specialPrice || item.product.price) * item.quantity)}
+                            </span>
                           )}
-                          {item.discount > 0 && (
-                            <div className="text-xs text-green-600">
-                              -{item.discount}%
-                            </div>
+                          {item.specialPrice && (
+                            <div className="text-xs text-blue-600">Precio especial</div>
                           )}
                         </div>
+                      </div>
+
+                      {/* Descuento por ítem en pesos */}
+                      <div className="flex items-center gap-1.5 mt-1.5 pt-1.5 border-t border-gray-100">
+                        <span className="text-xs text-gray-500 flex-shrink-0">Descuento $:</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max={(item.specialPrice || item.product.price) * item.quantity}
+                          value={item.discount || ''}
+                          onChange={(e) => updateDiscount(item.product.id, Math.max(0, Number(e.target.value)))}
+                          placeholder="0"
+                          className="flex-1 px-2 py-0.5 border border-gray-200 rounded text-xs focus:outline-none focus:ring-1 focus:ring-orange-400"
+                        />
                       </div>
                       
                       {/* Información GS1 adicional */}
@@ -1341,12 +1360,12 @@ export default function SalesContent() {
                   <span>Total</span>
                 </div>
                 {receiptData.items.map((item: any, i: number) => {
-                  const lineTotal = (item.unitPrice * item.quantity) * (1 - item.discount / 100);
+                  const lineTotal = Math.max(0, (item.unitPrice * item.quantity) - item.discount);
                   return (
                     <div key={i}>
                       <p className="truncate font-medium">{item.name}</p>
                       <div className="flex justify-between text-gray-600">
-                        <span>{formatCurrency(item.unitPrice)} x {item.quantity}{item.discount > 0 ? ` (-${item.discount}%)` : ''}</span>
+                        <span>{formatCurrency(item.unitPrice)} x {item.quantity}{item.discount > 0 ? ` (-${formatCurrency(item.discount)})` : ''}</span>
                         <span className="font-medium text-gray-900">{formatCurrency(lineTotal)}</span>
                       </div>
                     </div>
